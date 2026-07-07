@@ -96,9 +96,16 @@ Compare pass rates across models and prompts with the matrix runner. See **[docs
 .\scripts\run_matrix.ps1         # Windows
 ```
 
-| Model | Prompt | Pass rate |
-|-------|--------|-----------|
-| *(run matrix CLI — see BENCHMARKS.md)* | | |
+Reference run of the `fixture-2x2` matrix (recorded trajectories replayed against the 6-task subset — a clean fix vs. an agent that deletes the failing assertion):
+
+| Trajectory | Prompt | Pass rate |
+|------------|--------|-----------|
+| clean fix (`trajectory_pass`) | direct | 6/6 (100%) |
+| clean fix (`trajectory_pass`) | verbose | 6/6 (100%) |
+| assertion-delete regression (`trajectory_regression`) | direct | 1/6 (16.7%) |
+| assertion-delete regression (`trajectory_regression`) | verbose | 1/6 (16.7%) |
+
+Overall pass rate 58.3%, zero drift against baseline (threshold 5%). See [BENCHMARKS.md](docs/BENCHMARKS.md) for schema and how to add live model runs.
 
 ## Docs
 
