@@ -44,3 +44,6 @@ examples/casualstack-brand/
 
 # Local run artifacts
 .agentbench/
+
+# Launch drafts (internal until posted)
+launch/

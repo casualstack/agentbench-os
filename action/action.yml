@@ -1,6 +1,10 @@
 name: AgentBench Gate
 description: Run property-based oracles against agent trajectories on pull requests
-author: AgentBench OS
+author: Casualstack
+
+branding:
+  icon: shield
+  color: purple
 
 inputs:
   tasks:
