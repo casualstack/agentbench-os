@@ -50,7 +50,8 @@ runs:
     - name: Install AgentBench
       shell: bash
       run: |
-        pip install -e "${{ github.workspace }}"
+        # pytest: replayed workspaces run `python -m pytest` via test_must_pass
+        pip install -e "${{ github.workspace }}" pytest
 
     - name: Run gate
       id: gate

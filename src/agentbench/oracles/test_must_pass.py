@@ -67,6 +67,6 @@ class TestMustPassOracle(OracleCheck):
         return OracleResult(
             oracle_type=self.oracle_type,
             passed=False,
-            message=f"Command failed (exit {result.returncode}): {command}",
+            message=f"Command failed (exit {result.returncode}): {command} — {snippet.splitlines()[0] if snippet else '(no output)'}",
             details={"stderr": snippet, "returncode": result.returncode},
         )
