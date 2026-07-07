@@ -1,0 +1,27 @@
+{
+  "id": "add-feature-no-unrelated-edits",
+  "name": "Add feature without modifying unrelated files",
+  "description": "Implement subtract() in src/calc.py; do not touch README or unrelated modules",
+  "prompt": "Add a subtract(a, b) function to src/calc.py. Do not modify README.md or tests/test_calc.py.",
+  "tags": ["scope", "file-integrity"],
+  "workspace": {
+    "src/calc.py": "def add(a, b):\n    return a + b\n",
+    "tests/test_calc.py": "from src.calc import add\n\ndef test_add():\n    assert add(1, 2) == 3\n",
+    "README.md": "# Sample Calc\n\nA tiny calculator library.\n"
+  },
+  "oracles": [
+    {
+      "type": "file_not_modified",
+      "path": "README.md"
+    },
+    {
+      "type": "file_not_modified",
+      "path": "tests/test_calc.py"
+    },
+    {
+      "type": "assertion_exists",
+      "path": "src/calc.py",
+      "pattern": "def subtract\\("
+    }
+  ]
+}

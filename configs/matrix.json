@@ -1,0 +1,27 @@
+{
+  "description": "Default 2×2 model × prompt matrix (see benchmarks/matrix.yaml for drift baseline schema)",
+  "task_subset": "benchmarks/task_subset_pass.json",
+  "runs": [
+    {
+      "model": "claude-sonnet",
+      "prompt": "default",
+      "trajectory": "tests/fixtures/trajectory_pass.json"
+    },
+    {
+      "model": "claude-sonnet",
+      "prompt": "strict",
+      "trajectory": "tests/fixtures/trajectory_regression.json"
+    },
+    {
+      "model": "gpt-4",
+      "prompt": "default",
+      "trajectory": "tests/fixtures/trajectory_pass.json"
+    },
+    {
+      "model": "gpt-4",
+      "prompt": "strict",
+      "trajectory": "tests/fixtures/trajectory_regression.json"
+    }
+  ],
+  "drift_threshold": 0.15
+}

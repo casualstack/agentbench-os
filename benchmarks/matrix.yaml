@@ -1,0 +1,30 @@
+name: fixture-2x2
+tasks_dir: tasks
+task_subset: benchmarks/task_subset_pass.json
+drift_threshold: 0.05
+baseline:
+  overall_pass_rate: 0.583
+  by_model:
+    stub-pass: 1.0
+    stub-regression: 0.167
+  by_prompt:
+    direct: 0.583
+    verbose: 0.583
+  cells:
+    stub-pass/direct: 1.0
+    stub-pass/verbose: 1.0
+    stub-regression/direct: 0.167
+    stub-regression/verbose: 0.167
+cells:
+  - model: stub-pass
+    prompt: direct
+    trajectory: tests/fixtures/trajectory_pass.json
+  - model: stub-pass
+    prompt: verbose
+    trajectory: tests/fixtures/trajectory_pass.json
+  - model: stub-regression
+    prompt: direct
+    trajectory: tests/fixtures/trajectory_regression.json
+  - model: stub-regression
+    prompt: verbose
+    trajectory: tests/fixtures/trajectory_regression.json

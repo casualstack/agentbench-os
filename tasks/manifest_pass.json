@@ -1,0 +1,6 @@
+{
+  "description": "Gate manifest for trajectory_pass.json — resolves to benchmarks/task_subset_pass.json",
+  "trajectory": "tests/fixtures/trajectory_pass.json",
+  "recorded_for": "01_fix_failing_test_no_delete.json",
+  "task_subset": "../benchmarks/task_subset_pass.json"
+}

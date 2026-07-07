@@ -1,0 +1,23 @@
+{
+  "id": "implement-multiply",
+  "name": "Implement multiply with passing tests",
+  "description": "Add multiply() and ensure new test passes without breaking existing tests",
+  "prompt": "Implement multiply(a, b) in src/calc.py and make all tests pass.",
+  "tags": ["feature", "test-pass"],
+  "workspace": {
+    "src/calc.py": "def add(a, b):\n    return a + b\n",
+    "tests/test_calc.py": "from src.calc import add\n\ndef test_add():\n    assert add(1, 2) == 3\n",
+    "tests/test_multiply.py": "from src.calc import multiply\n\ndef test_multiply():\n    assert multiply(3, 4) == 12\n"
+  },
+  "oracles": [
+    {
+      "type": "test_must_pass",
+      "command": "python -m pytest tests/ -q"
+    },
+    {
+      "type": "assertion_exists",
+      "path": "src/calc.py",
+      "pattern": "def multiply\\("
+    }
+  ]
+}

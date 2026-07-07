@@ -1,0 +1,55 @@
+name: AgentBench Gate
+
+on:
+  pull_request:
+    paths:
+      - "src/**"
+      - "tasks/**"
+      - "tests/**"
+      - "action/**"
+      - ".github/workflows/agentbench-gate.yml"
+  workflow_dispatch:
+    inputs:
+      trajectory:
+        description: Path to agent trajectory JSON
+        required: true
+        default: tests/fixtures/trajectory_pass.json
+
+jobs:
+  gate-pass:
+    name: Gate pass (good trajectory)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run AgentBench gate
+        uses: ./action
+        with:
+          tasks: tasks
+          trajectory: ${{ github.event.inputs.trajectory || 'tests/fixtures/trajectory_pass.json' }}
+          task-manifest: tasks/manifest_pass.json
+          artifact-name: agentbench-gate-pass
+
+  gate-fail-demo:
+    name: Gate fail (regression caught)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run gate on regression trajectory
+        id: gate
+        continue-on-error: true
+        uses: ./action
+        with:
+          tasks: tasks
+          trajectory: tests/fixtures/trajectory_regression.json
+          artifact-name: agentbench-gate-fail-demo
+
+      - name: Verify regression was caught
+        shell: bash
+        run: |
+          if [ "${{ steps.gate.outcome }}" != "failure" ]; then
+            echo "Expected gate to FAIL on trajectory_regression.json"
+            exit 1
+          fi
+          echo "Regression correctly caught by oracles"
