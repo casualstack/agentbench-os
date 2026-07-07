@@ -30,10 +30,6 @@ agentbench gate --tasks tasks/ --trajectory tests/fixtures/trajectory_pass.json
 pytest -q
 ```
 
-## Why Python
-
-Python 3.11+ keeps the MVP self-contained: subprocess oracles can invoke `pytest` directly, JSON task definitions map cleanly to dataclasses, and GitHub Actions setup is one line. TypeScript would be better for a future web dashboard; the eval engine stays Python.
-
 ## Project layout
 
 ```
