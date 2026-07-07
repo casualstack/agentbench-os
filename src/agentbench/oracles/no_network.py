@@ -19,6 +19,20 @@ _NETWORK_PATTERNS = (
     "httpx",
     "socket.",
     "webbrowser",
+    # Package managers reaching a registry
+    "pip install",
+    "npm install",
+    "npm ci",
+    "pnpm install",
+    "pnpm add",
+    "yarn install",
+    "yarn add",
+    "bun install",
+    "bun add",
+    "cargo add",
+    "cargo install",
+    "go get",
+    "go install",
 )
 
 
