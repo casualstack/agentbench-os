@@ -1,0 +1,95 @@
+name: AgentBench Gate
+description: Run property-based oracles against agent trajectories on pull requests
+author: AgentBench OS
+
+inputs:
+  tasks:
+    description: Path to directory containing eval task JSON files
+    required: false
+    default: tasks
+  trajectory:
+    description: Path to agent trajectory JSON (recorded run)
+    required: true
+  task-manifest:
+    description: >-
+      Optional JSON manifest (e.g. tasks/manifest_pass.json) listing task_files
+      compatible with the trajectory. Without this, all tasks/*.json are evaluated.
+    required: false
+    default: ""
+  python-version:
+    description: Python version to use
+    required: false
+    default: "3.11"
+  report-path:
+    description: Path to write gate results JSON report
+    required: false
+    default: agentbench-report.json
+  artifact-name:
+    description: Name for uploaded gate results artifact
+    required: false
+    default: agentbench-gate-results
+
+outputs:
+  passed:
+    description: Whether all tasks passed the gate
+    value: ${{ steps.gate.outputs.passed }}
+  tasks-passed:
+    description: Number of tasks that passed
+    value: ${{ steps.gate.outputs.tasks-passed }}
+  tasks-failed:
+    description: Number of tasks that failed
+    value: ${{ steps.gate.outputs.tasks-failed }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install AgentBench
+      shell: bash
+      run: |
+        pip install -e "${{ github.workspace }}"
+
+    - name: Run gate
+      id: gate
+      shell: bash
+      env:
+        TASK_MANIFEST: ${{ inputs.task-manifest }}
+      run: |
+        set +e
+        gate_args=(
+          --tasks "${{ inputs.tasks }}"
+          --trajectory "${{ inputs.trajectory }}"
+          --report "${{ inputs.report-path }}"
+        )
+        if [ -n "$TASK_MANIFEST" ]; then
+          gate_args+=(--manifest "$TASK_MANIFEST")
+        fi
+        python "${{ github.action_path }}/entrypoint.py" "${gate_args[@]}"
+        exit_code=$?
+        set -e
+
+        if [ -f "${{ inputs.report-path }}" ]; then
+          passed=$(python -c "import json; print('true' if json.load(open('${{ inputs.report-path }}'))['passed'] else 'false')")
+          tasks_passed=$(python -c "import json; print(json.load(open('${{ inputs.report-path }}'))['tasks_passed'])")
+          tasks_failed=$(python -c "import json; print(json.load(open('${{ inputs.report-path }}'))['tasks_failed'])")
+        else
+          passed="false"
+          tasks_passed="0"
+          tasks_failed="0"
+        fi
+
+        echo "passed=$passed" >> "$GITHUB_OUTPUT"
+        echo "tasks-passed=$tasks_passed" >> "$GITHUB_OUTPUT"
+        echo "tasks-failed=$tasks_failed" >> "$GITHUB_OUTPUT"
+        exit $exit_code
+
+    - name: Upload gate results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ inputs.report-path }}
+        if-no-files-found: ignore

@@ -1,0 +1,14 @@
+{
+  "description": "Tasks compatible with tests/fixtures/trajectory_pass.json (recorded src/calc.py fix)",
+  "trajectory": "tests/fixtures/trajectory_pass.json",
+  "recorded_for": "01_fix_failing_test_no_delete.json",
+  "note": "trajectory_pass.json was recorded for task 01. Other listed tasks share the same calc.py workspace pattern and pass when replayed; tasks 02, 05–07, 10 require different trajectories.",
+  "task_files": [
+    "01_fix_failing_test_no_delete.json",
+    "03_offline_fix_no_network.json",
+    "04_preserve_test_suite.json",
+    "08_handle_edge_case.json",
+    "09_lint_fix_only.json",
+    "sample.json"
+  ]
+}

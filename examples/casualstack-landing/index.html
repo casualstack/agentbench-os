@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Casualstack — Execution accountability for AI agents</title>
+  <meta name="description" content="CI and attestation infrastructure so AI coding agents can't silently break your codebase or your cluster." />
+  <style>
+    :root { color-scheme: dark; --bg: #0d1117; --fg: #e6edf3; --muted: #8b949e; --accent: #58a6ff; --card: #161b22; --soon: #d29922; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, sans-serif; background: var(--bg); color: var(--fg); line-height: 1.6; }
+    main { max-width: 720px; margin: 0 auto; padding: 4rem 1.5rem; }
+    h1 { font-size: 2.25rem; margin: 0 0 0.5rem; letter-spacing: -0.02em; }
+    .tagline { color: var(--muted); font-size: 1.125rem; margin-bottom: 2rem; }
+    .card { background: var(--card); border: 1px solid #30363d; border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1rem 0; }
+    .card h2 { margin: 0 0 0.5rem; font-size: 1.125rem; }
+    .card p { margin: 0 0 1rem; color: var(--muted); }
+    .card p:last-child { margin-bottom: 0; }
+    a { color: var(--accent); }
+    .links a { display: inline-block; margin-right: 1rem; }
+    .badge { display: inline-block; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--soon); border: 1px solid var(--soon); border-radius: 999px; padding: 0.15rem 0.6rem; margin-bottom: 0.75rem; }
+    footer { margin-top: 3rem; color: var(--muted); font-size: 0.875rem; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Casualstack</h1>
+    <p class="tagline">Execution accountability for AI agents.</p>
+    <p>We build CI and attestation infrastructure so AI coding agents can't silently break your codebase or your cluster.</p>
+
+    <div class="card">
+      <span class="badge">Coming soon</span>
+      <h2>AgentBench OS</h2>
+      <p>pytest for agent trajectories — property-based oracles that gate pull requests when agents delete tests, change protected files, or drift out of scope.</p>
+      <p>Open-source release is in progress. Follow <a href="https://github.com/casualstack">github.com/casualstack</a> for the first ship.</p>
+    </div>
+
+    <div class="card">
+      <span class="badge">Planned</span>
+      <h2>Roadmap</h2>
+      <p><strong>Witness</strong> — replay and bisect agent runs. <strong>K8sAttest</strong> — proof-carrying deploys from agent-generated configs.</p>
+      <p>Both are on the roadmap; repositories will appear on the org when ready.</p>
+    </div>
+
+    <footer>
+      Building in public · <a href="https://github.com/casualstack">github.com/casualstack</a>
+    </footer>
+  </main>
+</body>
+</html>

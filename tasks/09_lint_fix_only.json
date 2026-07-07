@@ -1,0 +1,21 @@
+{
+  "id": "lint-fix-only",
+  "name": "Lint fix must not change behavior",
+  "description": "Apply lint fixes to src/calc.py; tests must still pass unchanged",
+  "prompt": "Fix lint issues in src/calc.py without changing behavior or modifying tests.",
+  "tags": ["lint", "behavior-preservation"],
+  "workspace": {
+    "src/calc.py": "def add(a,b):\n    return a+b\n",
+    "tests/test_calc.py": "from src.calc import add\n\ndef test_add():\n    assert add(1, 2) == 3\n"
+  },
+  "oracles": [
+    {
+      "type": "file_not_modified",
+      "path": "tests/test_calc.py"
+    },
+    {
+      "type": "test_must_pass",
+      "command": "python -m pytest tests/test_calc.py -q"
+    }
+  ]
+}

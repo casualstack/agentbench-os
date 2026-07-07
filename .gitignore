@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Accidental JS deps (this is a Python project)
+node_modules/
+package.json
+package-lock.json
+
+# Separate repos (deployed independently)
+website/
+
+# Internal planning docs — not part of the public repo
+HANDOFF.md
+HANDOFF_TO_CLAUDE.md
+docs/72_HOUR_PLAN.md
+docs/STARTUP_PLAN.md
+docs/GITHUB_ORG_RUNBOOK.md
+docs/GITHUB_SETUP.md
+docs/DOMAIN_SETUP.md
+docs/COMPETITIVE_LANGCHAIN.md
+examples/casualstack-brand/
+
+# Local run artifacts
+.agentbench/

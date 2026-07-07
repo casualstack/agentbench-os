@@ -1,0 +1,65 @@
+# AgentBench gate for generic Python projects.
+# Copy to: .github/workflows/agentbench-gate.yml
+#
+# Runs alongside your existing pytest job. AgentBench checks agent
+# trajectories; pytest checks current code correctness.
+
+name: AgentBench Gate
+
+on:
+  pull_request:
+    paths:
+      - "src/**"
+      - "lib/**"
+      - "app/**"
+      - "tests/**"
+      - "pyproject.toml"
+      - "requirements*.txt"
+      - ".agentbench/**"
+  workflow_dispatch:
+    inputs:
+      trajectory:
+        description: Path to agent trajectory JSON
+        required: true
+        default: .agentbench/last-run.json
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install -e ".[dev]" 2>/dev/null || pip install -r requirements-dev.txt 2>/dev/null || pip install pytest
+
+      - name: Run pytest
+        run: python -m pytest -q
+
+  agentbench-gate:
+    runs-on: ubuntu-latest
+    needs: pytest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Option A: AgentBench in monorepo
+      - name: Run AgentBench gate
+        uses: ./action
+        with:
+          tasks: .agentbench/tasks
+          trajectory: ${{ github.event.inputs.trajectory || '.agentbench/last-run.json' }}
+          python-version: "3.11"
+
+      # Option B: External checkout (uncomment and remove Option A)
+      # - uses: actions/checkout@v4
+      #   with:
+      #     repository: casualstack/agentbench-os
+      #     path: agentbench-os
+      # - uses: ./agentbench-os/action
+      #   with:
+      #     tasks: .agentbench/tasks
+      #     trajectory: ${{ github.event.inputs.trajectory || '.agentbench/last-run.json' }}

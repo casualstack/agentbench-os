@@ -1,0 +1,50 @@
+# AgentBench gate for infra / k8s repos (Docker, deploy scripts, server code).
+# Copy to: .github/workflows/agentbench-gate.yml
+#
+# Triggers on PRs that touch server, deploy, or plugin code.
+# Store recorded agent trajectories in .agentbench/
+
+name: AgentBench Gate
+
+on:
+  pull_request:
+    paths:
+      - "server/**"
+      - "plugins/**"
+      - "scripts/**"
+      - "docker/**"
+      - "k8s/**"
+      - "deploy/**"
+      - "Dockerfile"
+      - "docker-compose*.yml"
+      - ".agentbench/**"
+  workflow_dispatch:
+    inputs:
+      trajectory:
+        description: Path to agent trajectory JSON
+        required: true
+        default: .agentbench/last-run.json
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Option A: AgentBench lives in this monorepo (./action)
+      - name: Run AgentBench gate
+        uses: ./action
+        with:
+          tasks: .agentbench/tasks
+          trajectory: ${{ github.event.inputs.trajectory || '.agentbench/last-run.json' }}
+          python-version: "3.11"
+
+      # Option B: External AgentBench OS checkout (uncomment and remove Option A)
+      # - uses: actions/checkout@v4
+      #   with:
+      #     repository: casualstack/agentbench-os
+      #     path: agentbench-os
+      # - uses: ./agentbench-os/action
+      #   with:
+      #     tasks: .agentbench/tasks
+      #     trajectory: ${{ github.event.inputs.trajectory || '.agentbench/last-run.json' }}
