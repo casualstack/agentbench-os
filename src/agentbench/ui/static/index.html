@@ -8,7 +8,7 @@
   :root {
     --bg: #0d1117; --panel: #161b22; --border: #30363d;
     --text: #e6edf3; --muted: #8b949e; --accent: #58a6ff;
-    --pass: #3fb950; --fail: #f85149;
+    --pass: #3fb950; --fail: #f85149; --warn: #d29922;
   }
   * { box-sizing: border-box; }
   body {
@@ -16,8 +16,8 @@
     font: 14px/1.5 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   }
   header {
-    display: flex; align-items: baseline; gap: 12px;
-    padding: 16px 24px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 24px; border-bottom: 1px solid var(--border);
   }
   header h1 { margin: 0; font-size: 18px; }
   header h1 span { color: var(--accent); }
@@ -28,7 +28,7 @@
     border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px;
     font-family: ui-monospace, Consolas, monospace; font-size: 12px;
   }
-  nav { display: flex; gap: 4px; padding: 12px 24px 0; }
+  nav { display: flex; gap: 4px; padding: 12px 24px 0; border-bottom: 1px solid var(--border); }
   nav button {
     background: none; border: 1px solid transparent; border-bottom: none;
     color: var(--muted); padding: 8px 16px; cursor: pointer;
@@ -38,20 +38,21 @@
     color: var(--text); background: var(--panel);
     border-color: var(--border);
   }
-  main { padding: 20px 24px; max-width: 1100px; }
+  main { padding: 20px 24px; max-width: 1150px; }
   section { display: none; }
   section.active { display: block; }
   .panel {
     background: var(--panel); border: 1px solid var(--border);
     border-radius: 8px; padding: 16px; margin-bottom: 16px;
   }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
   label { display: block; color: var(--muted); font-size: 12px; margin: 10px 0 4px; }
   input[type=text], select, textarea {
     width: 100%; background: var(--bg); color: var(--text);
     border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px;
     font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 13px;
   }
-  textarea { min-height: 160px; resize: vertical; }
+  textarea { min-height: 140px; resize: vertical; }
   button.primary {
     background: var(--accent); color: #0d1117; border: none; border-radius: 6px;
     padding: 9px 18px; font-weight: 600; cursor: pointer; margin-top: 12px;
@@ -63,36 +64,51 @@
   }
   .banner {
     padding: 12px 16px; border-radius: 8px; font-weight: 600; margin-bottom: 16px;
-    border: 1px solid var(--border);
+    border: 1px solid var(--border); display: flex; gap: 16px; align-items: baseline;
   }
   .banner.pass { border-color: var(--pass); color: var(--pass); }
   .banner.fail { border-color: var(--fail); color: var(--fail); }
+  .banner .when { color: var(--muted); font-weight: 400; font-size: 12px; margin-left: auto; }
   .task-card { border: 1px solid var(--border); border-radius: 8px; margin-bottom: 10px; overflow: hidden; }
   .task-head {
     display: flex; align-items: center; gap: 10px; padding: 10px 14px;
-    cursor: pointer; background: var(--panel);
+    background: var(--panel);
   }
-  .task-head .status { font-weight: 700; font-size: 12px; width: 44px; }
+  .status { font-weight: 700; font-size: 12px; min-width: 44px; }
   .status.pass { color: var(--pass); } .status.fail { color: var(--fail); }
-  .task-head .tid { font-family: ui-monospace, Consolas, monospace; }
-  .oracle-row { padding: 8px 14px 8px 68px; border-top: 1px solid var(--border); font-size: 13px; }
+  .mono, .tid { font-family: ui-monospace, Consolas, monospace; }
+  .oracle-row { padding: 8px 14px 8px 40px; border-top: 1px solid var(--border); font-size: 13px; }
+  .oracle-row summary { cursor: pointer; list-style: none; display: flex; gap: 10px; align-items: baseline; }
+  .oracle-row summary::-webkit-details-marker { display: none; }
   .oracle-row .otype { font-family: ui-monospace, Consolas, monospace; color: var(--accent); }
   .oracle-row .msg { color: var(--muted); }
   .oracle-row.fail .msg { color: var(--fail); }
+  .oracle-row pre { margin: 8px 0 4px; }
   .chip {
     display: inline-block; border: 1px solid var(--border); border-radius: 10px;
     padding: 1px 9px; font-size: 12px; color: var(--muted); margin: 2px 3px 2px 0;
     font-family: ui-monospace, Consolas, monospace;
   }
+  .chip.link { cursor: pointer; color: var(--accent); border-color: var(--accent); }
   .err { color: var(--fail); margin-top: 10px; white-space: pre-wrap; }
   pre.out {
     background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
-    padding: 12px; overflow: auto; font-size: 12px; max-height: 380px;
+    padding: 12px; overflow: auto; font-size: 12px; max-height: 420px; white-space: pre-wrap;
   }
   .muted { color: var(--muted); }
   table { width: 100%; border-collapse: collapse; }
-  td, th { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); font-size: 13px; }
+  td, th { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: top; }
   th { color: var(--muted); font-weight: 500; }
+  tr.clickable { cursor: pointer; }
+  tr.clickable:hover td { background: rgba(88,166,255,.06); }
+  .rate { font-family: ui-monospace, Consolas, monospace; }
+  .rate.good { color: var(--pass); } .rate.bad { color: var(--fail); } .rate.mid { color: var(--warn); }
+  .spark { display: block; margin: 4px 0 12px; }
+  .step-args { color: var(--muted); font-family: ui-monospace, Consolas, monospace; font-size: 12px;
+    white-space: pre-wrap; word-break: break-all; max-height: 100px; overflow: auto; }
+  .badge { font-size: 11px; border-radius: 4px; padding: 1px 6px; font-weight: 600; }
+  .badge.edit { background: rgba(88,166,255,.15); color: var(--accent); }
+  .badge.cmd { background: rgba(210,153,34,.15); color: var(--warn); }
 </style>
 </head>
 <body>
@@ -108,20 +124,29 @@
 <nav>
   <button data-tab="gate" class="active">Gate runner</button>
   <button data-tab="tasks">Tasks</button>
+  <button data-tab="trajectories">Trajectories</button>
+  <button data-tab="matrix">Matrix</button>
+  <button data-tab="history">History</button>
   <button data-tab="record">Recorder</button>
 </nav>
 <main>
 
 <section id="tab-gate" class="active">
   <div class="panel">
-    <label>Tasks directory</label>
-    <input type="text" id="gate-tasks" value="tasks">
-    <label>Trajectory</label>
-    <select id="gate-trajectory"></select>
-    <label>Or paste a trajectory JSON (overrides selection)</label>
-    <textarea id="gate-paste" placeholder='{"metadata": {}, "steps": [...]}'></textarea>
-    <label>Task manifest (optional — limits which tasks run)</label>
-    <input type="text" id="gate-manifest" placeholder="tasks/manifest_pass.json">
+    <div class="cols">
+      <div>
+        <label>Tasks directory</label>
+        <input type="text" id="gate-tasks" value="tasks">
+        <label>Trajectory</label>
+        <select id="gate-trajectory"></select>
+        <label>Task manifest (optional — limits which tasks run)</label>
+        <input type="text" id="gate-manifest" placeholder="tasks/manifest_pass.json">
+      </div>
+      <div>
+        <label>Or paste a trajectory JSON (overrides selection)</label>
+        <textarea id="gate-paste" placeholder='{"metadata": {}, "steps": [...]}'></textarea>
+      </div>
+    </div>
     <button class="primary" id="gate-run">Run gate</button>
     <div class="err" id="gate-err"></div>
   </div>
@@ -136,6 +161,33 @@
     <div class="err" id="tasks-err"></div>
   </div>
   <div id="tasks-list"></div>
+  <div id="task-detail"></div>
+</section>
+
+<section id="tab-trajectories">
+  <div class="panel">
+    <p class="muted" style="margin:0">Recorded agent runs discovered under <code>tests/fixtures/</code> and <code>.agentbench/</code>. Click one to inspect its steps.</p>
+    <div class="err" id="traj-err"></div>
+  </div>
+  <div id="traj-list"></div>
+  <div id="traj-detail"></div>
+</section>
+
+<section id="tab-matrix">
+  <div class="panel">
+    <label>Matrix config</label>
+    <select id="matrix-config"></select>
+    <button class="primary" id="matrix-run">Run matrix</button>
+    <span class="muted" style="margin-left:10px">replays every cell trajectory against the task set — can take a minute</span>
+    <div class="err" id="matrix-err"></div>
+  </div>
+  <div id="matrix-results"></div>
+</section>
+
+<section id="tab-history">
+  <div class="panel" id="history-summary"></div>
+  <div id="history-list"></div>
+  <div id="history-detail"></div>
 </section>
 
 <section id="tab-record">
@@ -146,10 +198,10 @@
     </p>
     <label>JSONL log</label>
     <textarea id="rec-jsonl" placeholder='{"tool": "run_command", "args": {"command": "pytest -q"}}'></textarea>
-    <label>Agent (optional)</label>
-    <input type="text" id="rec-agent" placeholder="claude-code">
-    <label>Model (optional)</label>
-    <input type="text" id="rec-model" placeholder="claude-fable-5">
+    <div class="cols">
+      <div><label>Agent (optional)</label><input type="text" id="rec-agent" placeholder="claude-code"></div>
+      <div><label>Model (optional)</label><input type="text" id="rec-model" placeholder="claude-fable-5"></div>
+    </div>
     <button class="primary" id="rec-convert">Convert</button>
     <button class="ghost" id="rec-download" style="display:none">Download trajectory.json</button>
     <button class="ghost" id="rec-use" style="display:none">Use in gate runner</button>
@@ -162,15 +214,10 @@
 <script>
 const $ = (id) => document.getElementById(id);
 
-// --- tabs ---
-document.querySelectorAll("nav button").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    document.querySelectorAll("nav button").forEach((b) => b.classList.remove("active"));
-    document.querySelectorAll("main section").forEach((s) => s.classList.remove("active"));
-    btn.classList.add("active");
-    $("tab-" + btn.dataset.tab).classList.add("active");
-  });
-});
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
 
 async function api(path, opts) {
   const res = await fetch(path, opts);
@@ -178,8 +225,63 @@ async function api(path, opts) {
   if (!res.ok) throw new Error(data.error || res.statusText);
   return data;
 }
+const postJson = (path, body) => api(path, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(body),
+});
 
-// --- gate runner ---
+// --- tabs ---
+document.querySelectorAll("nav button").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("nav button").forEach((b) => b.classList.remove("active"));
+    document.querySelectorAll("main section").forEach((s) => s.classList.remove("active"));
+    btn.classList.add("active");
+    $("tab-" + btn.dataset.tab).classList.add("active");
+    if (btn.dataset.tab === "history") loadHistory();
+    if (btn.dataset.tab === "matrix") loadMatrixConfigs();
+    if (btn.dataset.tab === "trajectories") loadTrajList();
+  });
+});
+
+function rateClass(rate) {
+  return rate >= 0.8 ? "good" : rate >= 0.5 ? "mid" : "bad";
+}
+function pct(rate) { return (rate * 100).toFixed(1) + "%"; }
+
+// ============ gate report rendering (shared with history) ============
+function renderReport(report, meta) {
+  const cls = report.passed ? "pass" : "fail";
+  const label = report.passed ? "GATE PASS" : "GATE FAIL";
+  const when = meta && meta.timestamp
+    ? `<span class="when">${escapeHtml(meta.trajectory || "")} · ${escapeHtml(meta.timestamp)}</span>` : "";
+  let html = `<div class="banner ${cls}"><span>${label}</span>
+    <span>${report.tasks_passed}/${report.tasks_total} tasks passed</span>${when}</div>`;
+  for (const task of report.tasks) {
+    const tcls = task.passed ? "pass" : "fail";
+    html += `<div class="task-card">
+      <div class="task-head">
+        <span class="status ${tcls}">${task.passed ? "PASS" : "FAIL"}</span>
+        <span class="tid">${escapeHtml(task.task_id)}</span>
+      </div>`;
+    for (const o of task.oracle_results) {
+      const ocls = o.passed ? "pass" : "fail";
+      const hasDetails = o.details && Object.keys(o.details).length;
+      const summary = `
+        <span class="status ${ocls}">${o.passed ? "ok" : "FAIL"}</span>
+        <span class="otype">${escapeHtml(o.oracle_type)}</span>
+        <span class="msg">— ${escapeHtml(o.message)}${hasDetails ? " ▾" : ""}</span>`;
+      html += hasDetails
+        ? `<details class="oracle-row ${ocls}"><summary>${summary}</summary>
+             <pre class="out">${escapeHtml(JSON.stringify(o.details, null, 2))}</pre></details>`
+        : `<div class="oracle-row ${ocls}"><summary>${summary}</summary></div>`;
+    }
+    html += "</div>";
+  }
+  return html;
+}
+
+// ============ gate runner ============
 async function loadTrajectories() {
   try {
     const data = await api("/api/trajectories");
@@ -200,36 +302,6 @@ async function loadTrajectories() {
   }
 }
 
-function renderResults(report) {
-  const root = $("gate-results");
-  const cls = report.passed ? "pass" : "fail";
-  const label = report.passed ? "GATE PASS" : "GATE FAIL";
-  let html = `<div class="banner ${cls}">${label} — ${report.tasks_passed}/${report.tasks_total} tasks passed</div>`;
-  for (const task of report.tasks) {
-    const tcls = task.passed ? "pass" : "fail";
-    html += `<div class="task-card">
-      <div class="task-head">
-        <span class="status ${tcls}">${task.passed ? "PASS" : "FAIL"}</span>
-        <span class="tid">${task.task_id}</span>
-      </div>`;
-    for (const o of task.oracle_results) {
-      const ocls = o.passed ? "pass" : "fail";
-      html += `<div class="oracle-row ${ocls}">
-        <span class="status ${ocls}">${o.passed ? "ok" : "FAIL"}</span>
-        <span class="otype">${o.oracle_type}</span>
-        <span class="msg"> — ${escapeHtml(o.message)}</span>
-      </div>`;
-    }
-    html += "</div>";
-  }
-  root.innerHTML = html;
-}
-
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, (c) =>
-    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-}
-
 $("gate-run").addEventListener("click", async () => {
   const btn = $("gate-run");
   $("gate-err").textContent = "";
@@ -242,11 +314,7 @@ $("gate-run").addEventListener("click", async () => {
     else body.trajectory_path = $("gate-trajectory").value;
     const manifest = $("gate-manifest").value.trim();
     if (manifest) body.manifest = manifest;
-    renderResults(await api("/api/gate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    }));
+    $("gate-results").innerHTML = renderReport(await postJson("/api/gate", body));
   } catch (e) {
     $("gate-results").innerHTML = "";
     $("gate-err").textContent = e.message;
@@ -255,16 +323,16 @@ $("gate-run").addEventListener("click", async () => {
   }
 });
 
-// --- tasks browser ---
+// ============ tasks ============
 async function loadTasks() {
   $("tasks-err").textContent = "";
   try {
-    const dir = encodeURIComponent($("tasks-dir").value.trim() || "tasks");
-    const data = await api(`/api/tasks?dir=${dir}`);
+    const dir = $("tasks-dir").value.trim() || "tasks";
+    const data = await api(`/api/tasks?dir=${encodeURIComponent(dir)}`);
     let html = `<div class="panel"><table>
       <tr><th>ID</th><th>Name</th><th>Oracles</th><th>Tags</th></tr>`;
     for (const t of data.tasks) {
-      html += `<tr>
+      html += `<tr class="clickable" data-file="${escapeHtml(t.file)}" data-dir="${escapeHtml(dir)}">
         <td class="tid">${escapeHtml(t.id)}</td>
         <td title="${escapeHtml(t.description)}">${escapeHtml(t.name)}</td>
         <td>${t.oracles.map((o) => `<span class="chip">${escapeHtml(o)}</span>`).join("")}</td>
@@ -277,26 +345,225 @@ async function loadTasks() {
     }
     html += "</div>";
     $("tasks-list").innerHTML = html;
+    document.querySelectorAll("#tasks-list tr.clickable").forEach((row) => {
+      row.addEventListener("click", () => showTaskDetail(row.dataset.dir, row.dataset.file));
+    });
   } catch (e) {
     $("tasks-err").textContent = e.message;
   }
 }
 $("tasks-load").addEventListener("click", loadTasks);
 
-// --- recorder ---
+async function showTaskDetail(dir, file) {
+  try {
+    const data = await api(`/api/task?dir=${encodeURIComponent(dir)}&file=${encodeURIComponent(file)}`);
+    const t = data.task;
+    let html = `<div class="panel">
+      <h3 style="margin-top:0"><span class="tid">${escapeHtml(t.id || file)}</span> — ${escapeHtml(t.name || "")}</h3>
+      <p class="muted">${escapeHtml(t.description || "")}</p>
+      <label>Prompt given to the agent</label>
+      <pre class="out">${escapeHtml(t.prompt || "")}</pre>
+      <label>Oracles</label>
+      <pre class="out">${escapeHtml(JSON.stringify(t.oracles || [], null, 2))}</pre>
+      <label>Initial workspace</label>`;
+    for (const [path, content] of Object.entries(t.workspace || {})) {
+      html += `<details><summary class="mono" style="cursor:pointer">${escapeHtml(path)}</summary>
+        <pre class="out">${escapeHtml(content)}</pre></details>`;
+    }
+    html += "</div>";
+    $("task-detail").innerHTML = html;
+    $("task-detail").scrollIntoView({ behavior: "smooth" });
+  } catch (e) {
+    $("tasks-err").textContent = e.message;
+  }
+}
+
+// ============ trajectories ============
+async function loadTrajList() {
+  try {
+    const data = await api("/api/trajectories");
+    let html = `<div class="panel"><table>
+      <tr><th>Path</th><th>Steps</th><th>Agent</th><th>Model</th></tr>`;
+    for (const t of data.trajectories) {
+      html += `<tr class="clickable" data-path="${escapeHtml(t.path)}">
+        <td class="mono">${escapeHtml(t.path)}</td>
+        <td>${t.steps}</td>
+        <td>${escapeHtml(t.metadata.agent || "—")}</td>
+        <td>${escapeHtml(t.metadata.model || "—")}</td>
+      </tr>`;
+    }
+    html += "</table></div>";
+    $("traj-list").innerHTML = html;
+    document.querySelectorAll("#traj-list tr.clickable").forEach((row) => {
+      row.addEventListener("click", () => showTrajDetail(row.dataset.path));
+    });
+  } catch (e) {
+    $("traj-err").textContent = e.message;
+  }
+}
+
+const EDIT_TOOLS = ["write_file", "edit_file", "str_replace", "Write", "StrReplace"];
+const CMD_TOOLS = ["run_command", "shell", "bash", "Bash", "execute"];
+
+async function showTrajDetail(path) {
+  try {
+    const data = await api(`/api/trajectory?path=${encodeURIComponent(path)}`);
+    const t = data.trajectory;
+    let html = `<div class="panel"><h3 style="margin-top:0" class="mono">${escapeHtml(path)}</h3>`;
+    if (t.metadata && Object.keys(t.metadata).length) {
+      html += `<pre class="out">${escapeHtml(JSON.stringify(t.metadata, null, 2))}</pre>`;
+    }
+    html += `<table><tr><th>#</th><th>Tool</th><th></th><th>Args</th></tr>`;
+    (t.steps || []).forEach((s, i) => {
+      let badge = "";
+      if (EDIT_TOOLS.includes(s.tool) || s.type === "file_edit") badge = `<span class="badge edit">edit</span>`;
+      else if (CMD_TOOLS.includes(s.tool) || s.type === "command") badge = `<span class="badge cmd">cmd</span>`;
+      html += `<tr>
+        <td class="muted">${i}</td>
+        <td class="mono">${escapeHtml(s.tool || s.type || "?")}</td>
+        <td>${badge}</td>
+        <td><div class="step-args">${escapeHtml(JSON.stringify(s.args || {}))}</div></td>
+      </tr>`;
+    });
+    html += "</table></div>";
+    $("traj-detail").innerHTML = html;
+    $("traj-detail").scrollIntoView({ behavior: "smooth" });
+  } catch (e) {
+    $("traj-err").textContent = e.message;
+  }
+}
+
+// ============ matrix ============
+async function loadMatrixConfigs() {
+  try {
+    const data = await api("/api/matrix-configs");
+    const sel = $("matrix-config");
+    sel.innerHTML = "";
+    for (const c of data.configs) {
+      const opt = document.createElement("option");
+      opt.value = c.path;
+      opt.textContent = `${c.name} (${c.path}, ${c.cells} cells${c.has_baseline ? ", baseline" : ""})`;
+      sel.appendChild(opt);
+    }
+    if (!data.configs.length) sel.innerHTML = "<option value=''>(no matrix configs found)</option>";
+  } catch (e) {
+    $("matrix-err").textContent = e.message;
+  }
+}
+
+$("matrix-run").addEventListener("click", async () => {
+  const btn = $("matrix-run");
+  $("matrix-err").textContent = "";
+  $("matrix-results").innerHTML = "<p class='muted'>Replaying matrix cells…</p>";
+  btn.disabled = true;
+  try {
+    const result = await postJson("/api/matrix", { config: $("matrix-config").value });
+    const overall = result.overall_pass_rate;
+    let html = `<div class="banner ${overall >= 0.5 ? "pass" : "fail"}">
+      <span>${escapeHtml(result.name || "matrix")}</span>
+      <span>overall pass rate <span class="rate ${rateClass(overall)}">${pct(overall)}</span></span></div>`;
+    html += `<div class="panel"><table>
+      <tr><th>Model</th><th>Prompt</th><th>Tasks</th><th>Pass rate</th></tr>`;
+    for (const c of result.cells) {
+      html += `<tr>
+        <td class="mono">${escapeHtml(c.model)}</td>
+        <td class="mono">${escapeHtml(c.prompt)}</td>
+        <td>${c.tasks_passed}/${c.tasks_total}</td>
+        <td><span class="rate ${rateClass(c.pass_rate)}">${pct(c.pass_rate)}</span></td>
+      </tr>`;
+    }
+    html += `</table></div>`;
+    const groups = [["By model", result.by_model], ["By prompt", result.by_prompt]];
+    html += `<div class="cols">`;
+    for (const [title, rates] of groups) {
+      html += `<div class="panel"><label style="margin-top:0">${title}</label><table>`;
+      for (const [key, rate] of Object.entries(rates || {})) {
+        html += `<tr><td class="mono">${escapeHtml(key)}</td>
+          <td><span class="rate ${rateClass(rate)}">${pct(rate)}</span></td></tr>`;
+      }
+      html += `</table></div>`;
+    }
+    html += `</div>`;
+    if (result.drift) {
+      const d = result.drift;
+      html += `<div class="banner ${d.drift_detected ? "fail" : "pass"}">
+        <span>${d.drift_detected ? "SCORE DRIFT DETECTED" : "No score drift"}</span>
+        <span class="muted">threshold ${pct(d.threshold ?? 0)}</span></div>`;
+      if (d.findings && d.findings.length) {
+        html += `<div class="panel"><pre class="out">${escapeHtml(JSON.stringify(d.findings, null, 2))}</pre></div>`;
+      }
+    }
+    $("matrix-results").innerHTML = html;
+  } catch (e) {
+    $("matrix-results").innerHTML = "";
+    $("matrix-err").textContent = e.message;
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+// ============ history ============
+let historyRuns = [];
+function sparkline(rates) {
+  if (rates.length < 2) return "";
+  const w = 360, h = 42, step = w / (rates.length - 1);
+  const pts = rates.map((r, i) => `${(i * step).toFixed(1)},${(h - 4 - r * (h - 8)).toFixed(1)}`);
+  return `<svg class="spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+    <polyline fill="none" stroke="#58a6ff" stroke-width="2" points="${pts.join(" ")}"/>
+    ${rates.map((r, i) => `<circle cx="${(i * step).toFixed(1)}" cy="${(h - 4 - r * (h - 8)).toFixed(1)}" r="2.5"
+      fill="${r === 1 ? "#3fb950" : r >= 0.5 ? "#d29922" : "#f85149"}"/>`).join("")}
+  </svg>`;
+}
+
+async function loadHistory() {
+  try {
+    const data = await api("/api/history");
+    historyRuns = data.runs;
+    if (!historyRuns.length) {
+      $("history-summary").innerHTML = "<p class='muted' style='margin:0'>No gate runs recorded yet — run the gate and results land here (persisted to <code>.agentbench/history.jsonl</code>).</p>";
+      $("history-list").innerHTML = "";
+      return;
+    }
+    const rates = historyRuns.map((r) => r.report.tasks_total ? r.report.tasks_passed / r.report.tasks_total : 0).reverse();
+    $("history-summary").innerHTML =
+      `<label style="margin-top:0">Pass rate — last ${historyRuns.length} runs (oldest → newest)</label>` +
+      sparkline(rates) +
+      `<span class="muted">persisted to .agentbench/history.jsonl in the project root</span>`;
+    let html = `<div class="panel"><table>
+      <tr><th>When (UTC)</th><th>Trajectory</th><th>Result</th><th>Tasks</th></tr>`;
+    historyRuns.forEach((r, i) => {
+      const cls = r.report.passed ? "pass" : "fail";
+      html += `<tr class="clickable" data-i="${i}">
+        <td class="mono">${escapeHtml((r.timestamp || "").replace("T", " ").replace("+00:00", ""))}</td>
+        <td class="mono">${escapeHtml(r.trajectory || "")}</td>
+        <td><span class="status ${cls}">${r.report.passed ? "PASS" : "FAIL"}</span></td>
+        <td>${r.report.tasks_passed}/${r.report.tasks_total}</td>
+      </tr>`;
+    });
+    html += "</table></div>";
+    $("history-list").innerHTML = html;
+    document.querySelectorAll("#history-list tr.clickable").forEach((row) => {
+      row.addEventListener("click", () => {
+        const run = historyRuns[Number(row.dataset.i)];
+        $("history-detail").innerHTML = renderReport(run.report, run);
+        $("history-detail").scrollIntoView({ behavior: "smooth" });
+      });
+    });
+  } catch (e) {
+    $("history-summary").innerHTML = `<div class="err">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+// ============ recorder ============
 let lastTrajectory = null;
 $("rec-convert").addEventListener("click", async () => {
   $("rec-err").textContent = "";
   try {
-    lastTrajectory = await api("/api/record", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        jsonl: $("rec-jsonl").value,
-        agent: $("rec-agent").value.trim(),
-        model: $("rec-model").value.trim(),
-        source: "agentbench ui recorder",
-      }),
+    lastTrajectory = await postJson("/api/record", {
+      jsonl: $("rec-jsonl").value,
+      agent: $("rec-agent").value.trim(),
+      model: $("rec-model").value.trim(),
+      source: "agentbench client recorder",
     });
     $("rec-out").textContent = JSON.stringify(lastTrajectory, null, 2);
     $("rec-out").style.display = "block";
@@ -322,7 +589,7 @@ $("rec-use").addEventListener("click", () => {
   document.querySelector('nav button[data-tab="gate"]').click();
 });
 
-// --- project root (desktop client) ---
+// ============ project root ============
 async function loadRoot() {
   try {
     const data = await api("/api/root");
@@ -330,16 +597,19 @@ async function loadRoot() {
   } catch (e) { /* header stays empty */ }
 }
 
+function refreshAll() {
+  loadRoot();
+  loadTrajectories();
+  loadTasks();
+}
+
 $("root-open").addEventListener("click", async () => {
   try {
-    const data = await api("/api/root", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ path: $("root-path").value.trim() }),
-    });
+    const data = await postJson("/api/root", { path: $("root-path").value.trim() });
     $("root-path").value = data.root;
-    loadTrajectories();
-    loadTasks();
+    ["gate-results", "tasks-list", "task-detail", "traj-list", "traj-detail",
+     "matrix-results", "history-list", "history-detail"].forEach((id) => { $(id).innerHTML = ""; });
+    refreshAll();
   } catch (e) {
     alert(e.message);
   }
@@ -357,9 +627,7 @@ window.addEventListener("pywebviewready", () => {
   });
 });
 
-loadRoot();
-loadTrajectories();
-loadTasks();
+refreshAll();
 </script>
 </body>
 </html>

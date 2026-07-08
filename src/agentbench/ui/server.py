@@ -7,8 +7,10 @@ relative to the project root and confined to it.
 from __future__ import annotations
 
 import json
+import os
 import threading
 import webbrowser
+from datetime import datetime, timezone
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -17,11 +19,17 @@ from urllib.parse import parse_qs, urlparse
 
 from agentbench.gate.evaluator import Evaluator
 from agentbench.gate.manifest import load_task_manifest
+from agentbench.matrix import MatrixConfig, MatrixRunner, detect_score_drift
 from agentbench.models.task import EvalTask, RunResult
 from agentbench.recorder import build_trajectory, steps_from_jsonl
 from agentbench.runner.trajectory import Trajectory
 
 STATIC_DIR = Path(__file__).parent / "static"
+HISTORY_LIMIT = 50
+
+# Matrix configs resolve trajectory/task paths relative to the process cwd,
+# so matrix runs chdir to the project root; serialize them.
+_MATRIX_LOCK = threading.Lock()
 
 
 def _resolve_under(root: Path, candidate: str) -> Path:
@@ -113,16 +121,28 @@ class UIHandler(BaseHTTPRequestHandler):
             return
 
         parsed = urlparse(self.path)
-        if parsed.path in ("/", "/index.html"):
-            self._serve_index()
-        elif parsed.path == "/api/root":
-            self._send_json({"root": str(self.root)})
-        elif parsed.path == "/api/tasks":
-            self._api_tasks(parse_qs(parsed.query))
-        elif parsed.path == "/api/trajectories":
-            self._api_trajectories()
-        else:
-            self._send_error_json("not found", HTTPStatus.NOT_FOUND)
+        query = parse_qs(parsed.query)
+        try:
+            if parsed.path in ("/", "/index.html"):
+                self._serve_index()
+            elif parsed.path == "/api/root":
+                self._send_json({"root": str(self.root)})
+            elif parsed.path == "/api/tasks":
+                self._api_tasks(query)
+            elif parsed.path == "/api/task":
+                self._api_task_detail(query)
+            elif parsed.path == "/api/trajectories":
+                self._api_trajectories()
+            elif parsed.path == "/api/trajectory":
+                self._api_trajectory_detail(query)
+            elif parsed.path == "/api/matrix-configs":
+                self._api_matrix_configs()
+            elif parsed.path == "/api/history":
+                self._api_history()
+            else:
+                self._send_error_json("not found", HTTPStatus.NOT_FOUND)
+        except (ValueError, OSError, json.JSONDecodeError) as exc:
+            self._send_error_json(str(exc))
 
     def do_POST(self) -> None:  # noqa: N802
         if not self._host_allowed():
@@ -136,6 +156,8 @@ class UIHandler(BaseHTTPRequestHandler):
                 self._api_record(self._read_json_body())
             elif self.path == "/api/root":
                 self._api_set_root(self._read_json_body())
+            elif self.path == "/api/matrix":
+                self._api_matrix(self._read_json_body())
             else:
                 self._send_error_json("not found", HTTPStatus.NOT_FOUND)
         except (ValueError, OSError, json.JSONDecodeError) as exc:
@@ -193,10 +215,12 @@ class UIHandler(BaseHTTPRequestHandler):
 
         if "trajectory" in body:
             trajectory = Trajectory.from_dict(body["trajectory"])
+            trajectory_label = "(pasted trajectory)"
         elif "trajectory_path" in body:
             trajectory = Trajectory.from_file(
                 _resolve_under(self.root, body["trajectory_path"])
             )
+            trajectory_label = body["trajectory_path"]
         else:
             raise ValueError("provide 'trajectory' (object) or 'trajectory_path'")
 
@@ -215,7 +239,106 @@ class UIHandler(BaseHTTPRequestHandler):
         results = [
             evaluator.evaluate(EvalTask.from_file(p), trajectory) for p in task_paths
         ]
-        self._send_json(_gate_report(results))
+        report = _gate_report(results)
+        self._append_history(
+            {
+                "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                "trajectory": trajectory_label,
+                "tasks_dir": body.get("tasks_dir", self.tasks_dir),
+                "manifest": body.get("manifest") or None,
+                "report": report,
+            }
+        )
+        self._send_json(report)
+
+    # -- history ------------------------------------------------------------
+
+    def _history_file(self) -> Path:
+        return self.root / ".agentbench" / "history.jsonl"
+
+    def _append_history(self, record: dict[str, Any]) -> None:
+        try:
+            path = self._history_file()
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with path.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(record) + "\n")
+        except OSError:
+            pass  # history is best-effort; never fail a gate run over it
+
+    def _api_history(self) -> None:
+        runs: list[dict[str, Any]] = []
+        path = self._history_file()
+        if path.is_file():
+            for line in path.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    runs.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
+        self._send_json({"runs": runs[-HISTORY_LIMIT:][::-1]})
+
+    # -- detail views ---------------------------------------------------------
+
+    def _api_task_detail(self, query: dict[str, list[str]]) -> None:
+        tasks_dir = query.get("dir", [self.tasks_dir])[0]
+        file_name = query.get("file", [""])[0]
+        if not file_name:
+            raise ValueError("provide 'file'")
+        path = _resolve_under(self.root, f"{tasks_dir}/{file_name}")
+        data = json.loads(path.read_text(encoding="utf-8"))
+        self._send_json({"file": file_name, "task": data})
+
+    def _api_trajectory_detail(self, query: dict[str, list[str]]) -> None:
+        rel = query.get("path", [""])[0]
+        if not rel:
+            raise ValueError("provide 'path'")
+        path = _resolve_under(self.root, rel)
+        data = json.loads(path.read_text(encoding="utf-8"))
+        Trajectory.from_dict(data)  # validate before echoing
+        self._send_json({"path": rel, "trajectory": data})
+
+    # -- matrix ---------------------------------------------------------------
+
+    def _api_matrix_configs(self) -> None:
+        configs = []
+        for pattern in ("benchmarks/*.yaml", "benchmarks/*.yml", "configs/*.json"):
+            for path in sorted(self.root.glob(pattern)):
+                try:
+                    config = MatrixConfig.from_file(path)
+                except (ValueError, KeyError, OSError):
+                    continue
+                configs.append(
+                    {
+                        "path": path.relative_to(self.root).as_posix(),
+                        "name": getattr(config, "name", path.stem) or path.stem,
+                        "cells": len(config.cells),
+                        "has_baseline": config.baseline is not None,
+                    }
+                )
+        self._send_json({"configs": configs})
+
+    def _api_matrix(self, body: dict[str, Any]) -> None:
+        config_path = body.get("config")
+        if not isinstance(config_path, str) or not config_path:
+            raise ValueError("provide 'config' path")
+        config = MatrixConfig.from_file(_resolve_under(self.root, config_path))
+
+        with _MATRIX_LOCK:
+            cwd = os.getcwd()
+            os.chdir(self.root)
+            try:
+                result = MatrixRunner().run(config)
+                payload = result.model_dump(mode="json")
+                if config.baseline is not None:
+                    drift = detect_score_drift(
+                        result, config.baseline, threshold=config.drift_threshold
+                    )
+                    payload["drift"] = drift.model_dump(mode="json")
+            finally:
+                os.chdir(cwd)
+        self._send_json(payload)
 
     def _api_set_root(self, body: dict[str, Any]) -> None:
         """Switch the project root (desktop client 'open project')."""

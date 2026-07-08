@@ -38,12 +38,26 @@ agentbench ui --root /path/to/target-repo --tasks .agentbench/tasks
 ### Gate runner
 Pick a discovered trajectory (from `tests/fixtures/` or `.agentbench/`) or paste a
 trajectory JSON, optionally limit tasks with a manifest, and run the gate. Results
-render per task with per-oracle pass/fail and failure messages — the same
-evaluation the GitHub Action runs in CI.
+render per task with per-oracle pass/fail; failed oracles expand to show full
+details (stderr, violations). Same evaluation the GitHub Action runs in CI.
 
 ### Tasks
-Browse the task JSONs in any directory under the project root: id, name, oracle
-types, and tags.
+Browse the task JSONs in any directory under the project root. Click a task to
+drill into the agent prompt, oracle definitions, and initial workspace files.
+
+### Trajectories
+Inspect any recorded run step by step — tool, args, with file edits and shell
+commands badged.
+
+### Matrix
+Run any discovered benchmark matrix config (`benchmarks/*.yaml`, `configs/*.json`)
+and get the cell table, per-model/per-prompt aggregates, and drift-vs-baseline
+verdict.
+
+### History
+Every gate run is persisted to `.agentbench/history.jsonl` in the project root.
+The tab shows a pass-rate trend over recent runs; click a run to re-open its full
+report.
 
 ### Recorder
 Paste JSONL tool-call logs (one JSON object per line, Cursor/Claude Code exports).
@@ -53,14 +67,20 @@ straight to the gate runner.
 
 ## HTTP API
 
-The dashboard is a thin frontend over a local JSON API (all paths resolved
+The client is a thin frontend over a local JSON API (all paths resolved
 relative to `--root` and confined to it):
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
+| `/api/root` | GET/POST | Get or switch the project root |
 | `/api/tasks?dir=tasks` | GET | List task files in a directory |
+| `/api/task?dir=&file=` | GET | Full task definition |
 | `/api/trajectories` | GET | Discover trajectory JSONs |
+| `/api/trajectory?path=` | GET | Full trajectory (validated) |
 | `/api/gate` | POST | Run the gate: `{tasks_dir, trajectory_path \| trajectory, manifest?}` |
+| `/api/matrix-configs` | GET | Discover benchmark matrix configs |
+| `/api/matrix` | POST | Run a matrix: `{config}` |
+| `/api/history` | GET | Recent gate runs (from `.agentbench/history.jsonl`) |
 | `/api/record` | POST | Convert JSONL: `{jsonl, agent?, model?, source?}` |
 
 ## Security notes

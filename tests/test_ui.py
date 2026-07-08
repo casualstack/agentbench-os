@@ -103,6 +103,47 @@ def test_api_root_switch(tmp_path):
         server.server_close()
 
 
+def test_api_task_detail(ui_base_url):
+    data = _get(ui_base_url + "/api/task?dir=tasks&file=01_fix_failing_test_no_delete.json")
+    assert data["task"]["id"] == "fix-failing-test-no-delete"
+    assert "prompt" in data["task"]
+    assert "workspace" in data["task"]
+
+
+def test_api_trajectory_detail(ui_base_url):
+    data = _get(
+        ui_base_url + "/api/trajectory?path=tests/fixtures/trajectory_pass.json"
+    )
+    assert data["path"] == "tests/fixtures/trajectory_pass.json"
+    assert isinstance(data["trajectory"]["steps"], list)
+
+
+def test_api_matrix_configs(ui_base_url):
+    data = _get(ui_base_url + "/api/matrix-configs")
+    paths = [c["path"] for c in data["configs"]]
+    assert "benchmarks/matrix.yaml" in paths
+    fixture = next(c for c in data["configs"] if c["path"] == "benchmarks/matrix.yaml")
+    assert fixture["cells"] == 4
+    assert fixture["has_baseline"] is True
+
+
+def test_gate_run_recorded_in_history(ui_base_url):
+    _post(
+        ui_base_url + "/api/gate",
+        {
+            "tasks_dir": "tasks",
+            "trajectory_path": "tests/fixtures/trajectory_pass.json",
+            "manifest": "tasks/manifest_pass.json",
+        },
+    )
+    data = _get(ui_base_url + "/api/history")
+    assert data["runs"], "expected at least one recorded run"
+    latest = data["runs"][0]
+    assert latest["trajectory"] == "tests/fixtures/trajectory_pass.json"
+    assert latest["report"]["passed"] is True
+    assert latest["timestamp"]
+
+
 def test_api_record_normalizes_jsonl(ui_base_url):
     jsonl = "\n".join(
         [
