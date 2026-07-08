@@ -37,27 +37,6 @@ agentbench ui
 pytest -q
 ```
 
-## Why Python
-
-Python 3.11+ keeps the MVP self-contained: subprocess oracles can invoke `pytest` directly, JSON task definitions map cleanly to dataclasses, and GitHub Actions setup is one line. The bundled dashboard (`agentbench ui`, see [docs/UI.md](docs/UI.md)) is a zero-dependency stdlib server for the same reason; the eval engine stays Python.
-
-## Project layout
-
-```
-src/agentbench/
-  cli/          # agentbench run | gate
-  dsl/          # task + trajectory validation
-  gate/         # Evaluator orchestration
-  models/       # EvalTask, Oracle, RunResult
-  oracles/      # test_must_pass, file_not_modified, no_network, assertion_exists
-  runner/       # trajectory replay + workspace staging
-  ui/           # local dashboard (agentbench ui)
-action/         # composite GitHub Action
-tasks/          # 10 sample eval tasks (JSON)
-tests/          # pytest suite + trajectory fixtures
-docs/           # architecture, DSL, oracle specs, 72h plan
-```
-
 ## Oracle types
 
 | Type | What it checks |
