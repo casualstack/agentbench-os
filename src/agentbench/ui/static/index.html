@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AgentBench</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --border: #30363d;
+    --text: #e6edf3; --muted: #8b949e; --accent: #58a6ff;
+    --pass: #3fb950; --fail: #f85149;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.5 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  header {
+    display: flex; align-items: baseline; gap: 12px;
+    padding: 16px 24px; border-bottom: 1px solid var(--border);
+  }
+  header h1 { margin: 0; font-size: 18px; }
+  header h1 span { color: var(--accent); }
+  header .sub { color: var(--muted); font-size: 13px; }
+  nav { display: flex; gap: 4px; padding: 12px 24px 0; }
+  nav button {
+    background: none; border: 1px solid transparent; border-bottom: none;
+    color: var(--muted); padding: 8px 16px; cursor: pointer;
+    border-radius: 6px 6px 0 0; font-size: 14px;
+  }
+  nav button.active {
+    color: var(--text); background: var(--panel);
+    border-color: var(--border);
+  }
+  main { padding: 20px 24px; max-width: 1100px; }
+  section { display: none; }
+  section.active { display: block; }
+  .panel {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px; margin-bottom: 16px;
+  }
+  label { display: block; color: var(--muted); font-size: 12px; margin: 10px 0 4px; }
+  input[type=text], select, textarea {
+    width: 100%; background: var(--bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px;
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 13px;
+  }
+  textarea { min-height: 160px; resize: vertical; }
+  button.primary {
+    background: var(--accent); color: #0d1117; border: none; border-radius: 6px;
+    padding: 9px 18px; font-weight: 600; cursor: pointer; margin-top: 12px;
+  }
+  button.primary:disabled { opacity: .5; cursor: wait; }
+  button.ghost {
+    background: none; border: 1px solid var(--border); color: var(--text);
+    border-radius: 6px; padding: 8px 14px; cursor: pointer; margin-top: 12px;
+  }
+  .banner {
+    padding: 12px 16px; border-radius: 8px; font-weight: 600; margin-bottom: 16px;
+    border: 1px solid var(--border);
+  }
+  .banner.pass { border-color: var(--pass); color: var(--pass); }
+  .banner.fail { border-color: var(--fail); color: var(--fail); }
+  .task-card { border: 1px solid var(--border); border-radius: 8px; margin-bottom: 10px; overflow: hidden; }
+  .task-head {
+    display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+    cursor: pointer; background: var(--panel);
+  }
+  .task-head .status { font-weight: 700; font-size: 12px; width: 44px; }
+  .status.pass { color: var(--pass); } .status.fail { color: var(--fail); }
+  .task-head .tid { font-family: ui-monospace, Consolas, monospace; }
+  .oracle-row { padding: 8px 14px 8px 68px; border-top: 1px solid var(--border); font-size: 13px; }
+  .oracle-row .otype { font-family: ui-monospace, Consolas, monospace; color: var(--accent); }
+  .oracle-row .msg { color: var(--muted); }
+  .oracle-row.fail .msg { color: var(--fail); }
+  .chip {
+    display: inline-block; border: 1px solid var(--border); border-radius: 10px;
+    padding: 1px 9px; font-size: 12px; color: var(--muted); margin: 2px 3px 2px 0;
+    font-family: ui-monospace, Consolas, monospace;
+  }
+  .err { color: var(--fail); margin-top: 10px; white-space: pre-wrap; }
+  pre.out {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+    padding: 12px; overflow: auto; font-size: 12px; max-height: 380px;
+  }
+  .muted { color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; }
+  td, th { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); font-size: 13px; }
+  th { color: var(--muted); font-weight: 500; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Agent<span>Bench</span></h1>
+  <div class="sub">property-based CI gates for agent trajectories · local dashboard</div>
+</header>
+<nav>
+  <button data-tab="gate" class="active">Gate runner</button>
+  <button data-tab="tasks">Tasks</button>
+  <button data-tab="record">Recorder</button>
+</nav>
+<main>
+
+<section id="tab-gate" class="active">
+  <div class="panel">
+    <label>Tasks directory</label>
+    <input type="text" id="gate-tasks" value="tasks">
+    <label>Trajectory</label>
+    <select id="gate-trajectory"></select>
+    <label>Or paste a trajectory JSON (overrides selection)</label>
+    <textarea id="gate-paste" placeholder='{"metadata": {}, "steps": [...]}'></textarea>
+    <label>Task manifest (optional — limits which tasks run)</label>
+    <input type="text" id="gate-manifest" placeholder="tasks/manifest_pass.json">
+    <button class="primary" id="gate-run">Run gate</button>
+    <div class="err" id="gate-err"></div>
+  </div>
+  <div id="gate-results"></div>
+</section>
+
+<section id="tab-tasks">
+  <div class="panel">
+    <label>Tasks directory</label>
+    <input type="text" id="tasks-dir" value="tasks">
+    <button class="ghost" id="tasks-load">Load</button>
+    <div class="err" id="tasks-err"></div>
+  </div>
+  <div id="tasks-list"></div>
+</section>
+
+<section id="tab-record">
+  <div class="panel">
+    <p class="muted" style="margin-top:0">
+      Paste JSONL tool-call logs (one JSON object per line — Cursor/Claude Code exports).
+      Common field names (<code>tool</code>/<code>name</code>, <code>args</code>/<code>input</code>) are normalized automatically.
+    </p>
+    <label>JSONL log</label>
+    <textarea id="rec-jsonl" placeholder='{"tool": "run_command", "args": {"command": "pytest -q"}}'></textarea>
+    <label>Agent (optional)</label>
+    <input type="text" id="rec-agent" placeholder="claude-code">
+    <label>Model (optional)</label>
+    <input type="text" id="rec-model" placeholder="claude-fable-5">
+    <button class="primary" id="rec-convert">Convert</button>
+    <button class="ghost" id="rec-download" style="display:none">Download trajectory.json</button>
+    <button class="ghost" id="rec-use" style="display:none">Use in gate runner</button>
+    <div class="err" id="rec-err"></div>
+  </div>
+  <pre class="out" id="rec-out" style="display:none"></pre>
+</section>
+
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+
+// --- tabs ---
+document.querySelectorAll("nav button").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("nav button").forEach((b) => b.classList.remove("active"));
+    document.querySelectorAll("main section").forEach((s) => s.classList.remove("active"));
+    btn.classList.add("active");
+    $("tab-" + btn.dataset.tab).classList.add("active");
+  });
+});
+
+async function api(path, opts) {
+  const res = await fetch(path, opts);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || res.statusText);
+  return data;
+}
+
+// --- gate runner ---
+async function loadTrajectories() {
+  try {
+    const data = await api("/api/trajectories");
+    const sel = $("gate-trajectory");
+    sel.innerHTML = "";
+    for (const t of data.trajectories) {
+      const opt = document.createElement("option");
+      opt.value = t.path;
+      const meta = t.metadata.agent ? ` · ${t.metadata.agent}` : "";
+      opt.textContent = `${t.path} (${t.steps} steps${meta})`;
+      sel.appendChild(opt);
+    }
+    if (!data.trajectories.length) {
+      sel.innerHTML = "<option value=''>(no trajectories found)</option>";
+    }
+  } catch (e) {
+    $("gate-err").textContent = e.message;
+  }
+}
+
+function renderResults(report) {
+  const root = $("gate-results");
+  const cls = report.passed ? "pass" : "fail";
+  const label = report.passed ? "GATE PASS" : "GATE FAIL";
+  let html = `<div class="banner ${cls}">${label} — ${report.tasks_passed}/${report.tasks_total} tasks passed</div>`;
+  for (const task of report.tasks) {
+    const tcls = task.passed ? "pass" : "fail";
+    html += `<div class="task-card">
+      <div class="task-head">
+        <span class="status ${tcls}">${task.passed ? "PASS" : "FAIL"}</span>
+        <span class="tid">${task.task_id}</span>
+      </div>`;
+    for (const o of task.oracle_results) {
+      const ocls = o.passed ? "pass" : "fail";
+      html += `<div class="oracle-row ${ocls}">
+        <span class="status ${ocls}">${o.passed ? "ok" : "FAIL"}</span>
+        <span class="otype">${o.oracle_type}</span>
+        <span class="msg"> — ${escapeHtml(o.message)}</span>
+      </div>`;
+    }
+    html += "</div>";
+  }
+  root.innerHTML = html;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+$("gate-run").addEventListener("click", async () => {
+  const btn = $("gate-run");
+  $("gate-err").textContent = "";
+  $("gate-results").innerHTML = "<p class='muted'>Running oracles…</p>";
+  btn.disabled = true;
+  try {
+    const body = { tasks_dir: $("gate-tasks").value.trim() || "tasks" };
+    const pasted = $("gate-paste").value.trim();
+    if (pasted) body.trajectory = JSON.parse(pasted);
+    else body.trajectory_path = $("gate-trajectory").value;
+    const manifest = $("gate-manifest").value.trim();
+    if (manifest) body.manifest = manifest;
+    renderResults(await api("/api/gate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }));
+  } catch (e) {
+    $("gate-results").innerHTML = "";
+    $("gate-err").textContent = e.message;
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+// --- tasks browser ---
+async function loadTasks() {
+  $("tasks-err").textContent = "";
+  try {
+    const dir = encodeURIComponent($("tasks-dir").value.trim() || "tasks");
+    const data = await api(`/api/tasks?dir=${dir}`);
+    let html = `<div class="panel"><table>
+      <tr><th>ID</th><th>Name</th><th>Oracles</th><th>Tags</th></tr>`;
+    for (const t of data.tasks) {
+      html += `<tr>
+        <td class="tid">${escapeHtml(t.id)}</td>
+        <td title="${escapeHtml(t.description)}">${escapeHtml(t.name)}</td>
+        <td>${t.oracles.map((o) => `<span class="chip">${escapeHtml(o)}</span>`).join("")}</td>
+        <td>${t.tags.map((x) => `<span class="chip">${escapeHtml(x)}</span>`).join("")}</td>
+      </tr>`;
+    }
+    html += "</table>";
+    if (data.manifests.length) {
+      html += `<p class="muted">Manifests / non-task JSON: ${data.manifests.map(escapeHtml).join(", ")}</p>`;
+    }
+    html += "</div>";
+    $("tasks-list").innerHTML = html;
+  } catch (e) {
+    $("tasks-err").textContent = e.message;
+  }
+}
+$("tasks-load").addEventListener("click", loadTasks);
+
+// --- recorder ---
+let lastTrajectory = null;
+$("rec-convert").addEventListener("click", async () => {
+  $("rec-err").textContent = "";
+  try {
+    lastTrajectory = await api("/api/record", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jsonl: $("rec-jsonl").value,
+        agent: $("rec-agent").value.trim(),
+        model: $("rec-model").value.trim(),
+        source: "agentbench ui recorder",
+      }),
+    });
+    $("rec-out").textContent = JSON.stringify(lastTrajectory, null, 2);
+    $("rec-out").style.display = "block";
+    $("rec-download").style.display = "inline-block";
+    $("rec-use").style.display = "inline-block";
+  } catch (e) {
+    $("rec-err").textContent = e.message;
+  }
+});
+
+$("rec-download").addEventListener("click", () => {
+  const blob = new Blob([JSON.stringify(lastTrajectory, null, 2) + "\n"],
+    { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "trajectory.json";
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+$("rec-use").addEventListener("click", () => {
+  $("gate-paste").value = JSON.stringify(lastTrajectory, null, 2);
+  document.querySelector('nav button[data-tab="gate"]').click();
+});
+
+loadTrajectories();
+loadTasks();
+</script>
+</body>
+</html>

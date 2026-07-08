@@ -26,13 +26,16 @@ agentbench run \
 # CI gate over all tasks
 agentbench gate --tasks tasks/ --trajectory tests/fixtures/trajectory_pass.json
 
+# Local dashboard: gate runner + task browser + trajectory recorder
+agentbench ui
+
 # Run tests
 pytest -q
 ```
 
 ## Why Python
 
-Python 3.11+ keeps the MVP self-contained: subprocess oracles can invoke `pytest` directly, JSON task definitions map cleanly to dataclasses, and GitHub Actions setup is one line. TypeScript would be better for a future web dashboard; the eval engine stays Python.
+Python 3.11+ keeps the MVP self-contained: subprocess oracles can invoke `pytest` directly, JSON task definitions map cleanly to dataclasses, and GitHub Actions setup is one line. The bundled dashboard (`agentbench ui`, see [docs/UI.md](docs/UI.md)) is a zero-dependency stdlib server for the same reason; the eval engine stays Python.
 
 ## Project layout
 
@@ -44,6 +47,7 @@ src/agentbench/
   models/       # EvalTask, Oracle, RunResult
   oracles/      # test_must_pass, file_not_modified, no_network, assertion_exists
   runner/       # trajectory replay + workspace staging
+  ui/           # local dashboard (agentbench ui)
 action/         # composite GitHub Action
 tasks/          # 10 sample eval tasks (JSON)
 tests/          # pytest suite + trajectory fixtures
@@ -106,6 +110,7 @@ Compare pass rates across models and prompts with the matrix runner. See **[docs
 - [Eval DSL](docs/EVAL_DSL.md)
 - [Oracle spec](docs/ORACLE_SPEC.md)
 - [GitHub Action setup](docs/GITHUB_ACTION.md)
+- [Dashboard / UI client](docs/UI.md)
 - [Benchmarks](docs/BENCHMARKS.md)
 
 ## License
