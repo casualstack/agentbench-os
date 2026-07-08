@@ -26,24 +26,15 @@ agentbench run \
 # CI gate over all tasks
 agentbench gate --tasks tasks/ --trajectory tests/fixtures/trajectory_pass.json
 
+# Desktop client (native window): gate runner + task browser + recorder
+pip install -e ".[app]"
+agentbench app
+
+# Same client in a browser tab
+agentbench ui
+
 # Run tests
 pytest -q
-```
-
-## Project layout
-
-```
-src/agentbench/
-  cli/          # agentbench run | gate
-  dsl/          # task + trajectory validation
-  gate/         # Evaluator orchestration
-  models/       # EvalTask, Oracle, RunResult
-  oracles/      # test_must_pass, file_not_modified, no_network, assertion_exists
-  runner/       # trajectory replay + workspace staging
-action/         # composite GitHub Action
-tasks/          # 10 sample eval tasks (JSON)
-tests/          # pytest suite + trajectory fixtures
-docs/           # architecture, DSL, oracle specs, 72h plan
 ```
 
 ## Oracle types
@@ -92,9 +83,16 @@ Compare pass rates across models and prompts with the matrix runner. See **[docs
 .\scripts\run_matrix.ps1         # Windows
 ```
 
-| Model | Prompt | Pass rate |
-|-------|--------|-----------|
-| *(run matrix CLI — see BENCHMARKS.md)* | | |
+Reference run of the `fixture-2x2` matrix (recorded trajectories replayed against the 6-task subset — a clean fix vs. an agent that deletes the failing assertion):
+
+| Trajectory | Prompt | Pass rate |
+|------------|--------|-----------|
+| clean fix (`trajectory_pass`) | direct | 6/6 (100%) |
+| clean fix (`trajectory_pass`) | verbose | 6/6 (100%) |
+| assertion-delete regression (`trajectory_regression`) | direct | 1/6 (16.7%) |
+| assertion-delete regression (`trajectory_regression`) | verbose | 1/6 (16.7%) |
+
+Overall pass rate 58.3%, zero drift against baseline (threshold 5%). See [BENCHMARKS.md](docs/BENCHMARKS.md) for schema and how to add live model runs.
 
 ## Docs
 
@@ -102,6 +100,7 @@ Compare pass rates across models and prompts with the matrix runner. See **[docs
 - [Eval DSL](docs/EVAL_DSL.md)
 - [Oracle spec](docs/ORACLE_SPEC.md)
 - [GitHub Action setup](docs/GITHUB_ACTION.md)
+- [Dashboard / UI client](docs/UI.md)
 - [Benchmarks](docs/BENCHMARKS.md)
 
 ## License

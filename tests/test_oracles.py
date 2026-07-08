@@ -9,6 +9,7 @@ from agentbench.oracles.assertion_exists import AssertionExistsOracle
 from agentbench.oracles.file_not_modified import FileNotModifiedOracle
 from agentbench.oracles.no_network import NoNetworkOracle
 from agentbench.oracles.test_must_pass import TestMustPassOracle
+from agentbench.runner.trajectory import Trajectory
 
 
 def _workspace_with_calc(tmp_path: Path) -> tuple[Path, dict[str, str]]:
@@ -68,6 +69,31 @@ def test_no_network_fails_on_curl(trajectory_network, tmp_path: Path):
     oracle = Oracle(type="no_network", params={})
     result = NoNetworkOracle().check(oracle, workspace, trajectory_network, initial)
     assert not result.passed
+
+
+def test_no_network_fails_on_package_managers(tmp_path: Path):
+    workspace, initial = _workspace_with_calc(tmp_path)
+    oracle = Oracle(type="no_network", params={})
+    commands = (
+        "pip install requests",
+        "npm install left-pad",
+        "npm ci",
+        "pnpm add zod",
+        "yarn add lodash",
+        "bun install",
+        "cargo add serde",
+        "go get github.com/stretchr/testify",
+    )
+    for command in commands:
+        trajectory = Trajectory.from_dict(
+            {
+                "steps": [
+                    {"type": "tool_call", "tool": "run_command", "args": {"command": command}}
+                ]
+            }
+        )
+        result = NoNetworkOracle().check(oracle, workspace, trajectory, initial)
+        assert not result.passed, f"expected violation for: {command}"
 
 
 def test_test_must_pass_runs_pytest(trajectory_pass, tmp_path: Path):

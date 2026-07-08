@@ -87,6 +87,23 @@ def cmd_matrix(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_ui(args: argparse.Namespace) -> int:
+    from agentbench.ui.server import serve
+
+    return serve(
+        args.root,
+        tasks_dir=str(args.tasks),
+        port=args.port,
+        open_browser=not args.no_browser,
+    )
+
+
+def cmd_app(args: argparse.Namespace) -> int:
+    from agentbench.ui.app import run_app
+
+    return run_app(args.root, tasks_dir=str(args.tasks))
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="agentbench",
@@ -138,6 +155,36 @@ def build_parser() -> argparse.ArgumentParser:
         help="Exit 1 when pass rates drift beyond baseline threshold",
     )
     matrix_parser.set_defaults(func=cmd_matrix)
+
+    ui_parser = sub.add_parser(
+        "ui",
+        help="Launch the local dashboard (gate runner, task browser, recorder)",
+    )
+    ui_parser.add_argument(
+        "--root",
+        type=Path,
+        default=Path("."),
+        help="Project root the dashboard reads tasks/trajectories from",
+    )
+    ui_parser.add_argument("--tasks", type=Path, default=Path("tasks"), help="Tasks directory")
+    ui_parser.add_argument("--port", type=int, default=8321, help="Port on 127.0.0.1")
+    ui_parser.add_argument(
+        "--no-browser", action="store_true", help="Do not open a browser tab"
+    )
+    ui_parser.set_defaults(func=cmd_ui)
+
+    app_parser = sub.add_parser(
+        "app",
+        help="Launch the desktop client (native window; needs agentbench[app])",
+    )
+    app_parser.add_argument(
+        "--root",
+        type=Path,
+        default=Path("."),
+        help="Project root to open (switchable in-app)",
+    )
+    app_parser.add_argument("--tasks", type=Path, default=Path("tasks"), help="Tasks directory")
+    app_parser.set_defaults(func=cmd_app)
 
     return parser
 
