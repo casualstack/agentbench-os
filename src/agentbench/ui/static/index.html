@@ -114,7 +114,7 @@
 <body>
 <header>
   <h1>Agent<span>Bench</span></h1>
-  <div class="sub">property-based CI gates for agent trajectories</div>
+  <div class="sub">did your AI coding agent play by the rules?</div>
   <div class="rootbar">
     <input type="text" id="root-path" title="Project root" spellcheck="false">
     <button class="ghost" id="root-browse" style="display:none;margin:0">Browse…</button>
@@ -122,32 +122,37 @@
   </div>
 </header>
 <nav>
-  <button data-tab="gate" class="active">Gate runner</button>
-  <button data-tab="tasks">Tasks</button>
-  <button data-tab="trajectories">Trajectories</button>
-  <button data-tab="matrix">Matrix</button>
+  <button data-tab="gate" class="active">Run checks</button>
+  <button data-tab="tasks">Scenarios</button>
+  <button data-tab="trajectories">Agent sessions</button>
+  <button data-tab="matrix">Compare</button>
   <button data-tab="history">History</button>
-  <button data-tab="record">Recorder</button>
+  <button data-tab="record">Import a session</button>
 </nav>
 <main>
 
 <section id="tab-gate" class="active">
   <div class="panel">
+    <p class="muted" style="margin-top:0">
+      When an AI agent edits your code, it can quietly cheat — delete a failing test instead of
+      fixing the bug, touch files it shouldn't, or pull things off the internet.
+      This runs your agent's recorded session through a set of checks and tells you, plainly, if it behaved.
+    </p>
     <div class="cols">
       <div>
-        <label>Tasks directory</label>
-        <input type="text" id="gate-tasks" value="tasks">
-        <label>Trajectory</label>
+        <label>Which agent session? <span class="mono">(trajectory)</span></label>
         <select id="gate-trajectory"></select>
-        <label>Task manifest (optional — limits which tasks run)</label>
+        <label>Folder with the check scenarios <span class="mono">(tasks)</span></label>
+        <input type="text" id="gate-tasks" value="tasks">
+        <label>Only run some scenarios (optional manifest file)</label>
         <input type="text" id="gate-manifest" placeholder="tasks/manifest_pass.json">
       </div>
       <div>
-        <label>Or paste a trajectory JSON (overrides selection)</label>
+        <label>…or paste a session JSON here instead</label>
         <textarea id="gate-paste" placeholder='{"metadata": {}, "steps": [...]}'></textarea>
       </div>
     </div>
-    <button class="primary" id="gate-run">Run gate</button>
+    <button class="primary" id="gate-run">Check my agent</button>
     <div class="err" id="gate-err"></div>
   </div>
   <div id="gate-results"></div>
@@ -155,7 +160,11 @@
 
 <section id="tab-tasks">
   <div class="panel">
-    <label>Tasks directory</label>
+    <p class="muted" style="margin-top:0">
+      Scenarios are the rulebook: each one sets up a small piece of code, gives an agent a job to do,
+      and lists the checks it must not break. Click any scenario to read it in full.
+    </p>
+    <label>Scenarios folder</label>
     <input type="text" id="tasks-dir" value="tasks">
     <button class="ghost" id="tasks-load">Load</button>
     <div class="err" id="tasks-err"></div>
@@ -166,7 +175,7 @@
 
 <section id="tab-trajectories">
   <div class="panel">
-    <p class="muted" style="margin:0">Recorded agent runs discovered under <code>tests/fixtures/</code> and <code>.agentbench/</code>. Click one to inspect its steps.</p>
+    <p class="muted" style="margin:0">Every recorded agent session found in this project. Click one to see exactly what the agent did, step by step — every file it changed and every command it ran.</p>
     <div class="err" id="traj-err"></div>
   </div>
   <div id="traj-list"></div>
@@ -175,10 +184,14 @@
 
 <section id="tab-matrix">
   <div class="panel">
-    <label>Matrix config</label>
+    <p class="muted" style="margin-top:0">
+      Run the same scenarios against several recorded sessions side by side — different agents,
+      models, or prompts — and see who behaves best.
+    </p>
+    <label>Comparison setup <span class="mono">(matrix config)</span></label>
     <select id="matrix-config"></select>
-    <button class="primary" id="matrix-run">Run matrix</button>
-    <span class="muted" style="margin-left:10px">replays every cell trajectory against the task set — can take a minute</span>
+    <button class="primary" id="matrix-run">Compare</button>
+    <span class="muted" style="margin-left:10px">re-checks every session — can take a minute</span>
     <div class="err" id="matrix-err"></div>
   </div>
   <div id="matrix-results"></div>
@@ -193,18 +206,19 @@
 <section id="tab-record">
   <div class="panel">
     <p class="muted" style="margin-top:0">
-      Paste JSONL tool-call logs (one JSON object per line — Cursor/Claude Code exports).
-      Common field names (<code>tool</code>/<code>name</code>, <code>args</code>/<code>input</code>) are normalized automatically.
+      Got a tool log from Claude Code or Cursor? Paste it here (one JSON object per line) and it
+      becomes a session you can run checks against. Different tools name things differently
+      (<code>tool</code>/<code>name</code>, <code>args</code>/<code>input</code>) — that's handled for you.
     </p>
-    <label>JSONL log</label>
+    <label>Paste the log</label>
     <textarea id="rec-jsonl" placeholder='{"tool": "run_command", "args": {"command": "pytest -q"}}'></textarea>
     <div class="cols">
-      <div><label>Agent (optional)</label><input type="text" id="rec-agent" placeholder="claude-code"></div>
-      <div><label>Model (optional)</label><input type="text" id="rec-model" placeholder="claude-fable-5"></div>
+      <div><label>Which agent made it? (optional)</label><input type="text" id="rec-agent" placeholder="claude-code"></div>
+      <div><label>Which model? (optional)</label><input type="text" id="rec-model" placeholder="claude-fable-5"></div>
     </div>
-    <button class="primary" id="rec-convert">Convert</button>
-    <button class="ghost" id="rec-download" style="display:none">Download trajectory.json</button>
-    <button class="ghost" id="rec-use" style="display:none">Use in gate runner</button>
+    <button class="primary" id="rec-convert">Turn into a session</button>
+    <button class="ghost" id="rec-download" style="display:none">Download session file</button>
+    <button class="ghost" id="rec-use" style="display:none">Check it now</button>
     <div class="err" id="rec-err"></div>
   </div>
   <pre class="out" id="rec-out" style="display:none"></pre>
@@ -250,13 +264,32 @@ function rateClass(rate) {
 function pct(rate) { return (rate * 100).toFixed(1) + "%"; }
 
 // ============ gate report rendering (shared with history) ============
+// Plain-English names for each check type; technical name shown alongside.
+const CHECK_NAMES = {
+  test_must_pass: "The tests still pass",
+  file_not_modified: "Left protected files alone",
+  no_network: "Didn't reach for the internet",
+  assertion_exists: "Didn't delete any test assertions",
+};
+
+function verdictLine(report) {
+  const total = report.tasks_total, ok = report.tasks_passed;
+  if (report.passed) {
+    return total === 1
+      ? "Your agent behaved — it passed the check."
+      : `Your agent behaved — all ${total} scenarios passed.`;
+  }
+  const broke = total - ok;
+  return broke === 1
+    ? `Caught: your agent broke 1 of ${total} scenarios. Here's what happened.`
+    : `Caught: your agent broke ${broke} of ${total} scenarios. Here's what happened.`;
+}
+
 function renderReport(report, meta) {
   const cls = report.passed ? "pass" : "fail";
-  const label = report.passed ? "GATE PASS" : "GATE FAIL";
   const when = meta && meta.timestamp
     ? `<span class="when">${escapeHtml(meta.trajectory || "")} · ${escapeHtml(meta.timestamp)}</span>` : "";
-  let html = `<div class="banner ${cls}"><span>${label}</span>
-    <span>${report.tasks_passed}/${report.tasks_total} tasks passed</span>${when}</div>`;
+  let html = `<div class="banner ${cls}"><span>${report.passed ? "✓" : "✗"} ${escapeHtml(verdictLine(report))}</span>${when}</div>`;
   for (const task of report.tasks) {
     const tcls = task.passed ? "pass" : "fail";
     html += `<div class="task-card">
@@ -267,10 +300,12 @@ function renderReport(report, meta) {
     for (const o of task.oracle_results) {
       const ocls = o.passed ? "pass" : "fail";
       const hasDetails = o.details && Object.keys(o.details).length;
+      const friendly = CHECK_NAMES[o.oracle_type] || o.oracle_type;
       const summary = `
         <span class="status ${ocls}">${o.passed ? "ok" : "FAIL"}</span>
+        <span>${escapeHtml(friendly)}</span>
         <span class="otype">${escapeHtml(o.oracle_type)}</span>
-        <span class="msg">— ${escapeHtml(o.message)}${hasDetails ? " ▾" : ""}</span>`;
+        <span class="msg">— ${escapeHtml(o.message)}${hasDetails ? " · show evidence ▾" : ""}</span>`;
       html += hasDetails
         ? `<details class="oracle-row ${ocls}"><summary>${summary}</summary>
              <pre class="out">${escapeHtml(JSON.stringify(o.details, null, 2))}</pre></details>`
@@ -295,7 +330,7 @@ async function loadTrajectories() {
       sel.appendChild(opt);
     }
     if (!data.trajectories.length) {
-      sel.innerHTML = "<option value=''>(no trajectories found)</option>";
+      sel.innerHTML = "<option value=''>(no sessions found — grab one via the Import tab)</option>";
     }
   } catch (e) {
     $("gate-err").textContent = e.message;
@@ -305,7 +340,7 @@ async function loadTrajectories() {
 $("gate-run").addEventListener("click", async () => {
   const btn = $("gate-run");
   $("gate-err").textContent = "";
-  $("gate-results").innerHTML = "<p class='muted'>Running oracles…</p>";
+  $("gate-results").innerHTML = "<p class='muted'>Checking your agent…</p>";
   btn.disabled = true;
   try {
     const body = { tasks_dir: $("gate-tasks").value.trim() || "tasks" };
@@ -330,7 +365,7 @@ async function loadTasks() {
     const dir = $("tasks-dir").value.trim() || "tasks";
     const data = await api(`/api/tasks?dir=${encodeURIComponent(dir)}`);
     let html = `<div class="panel"><table>
-      <tr><th>ID</th><th>Name</th><th>Oracles</th><th>Tags</th></tr>`;
+      <tr><th>Scenario</th><th>What it's about</th><th>Checks</th><th>Tags</th></tr>`;
     for (const t of data.tasks) {
       html += `<tr class="clickable" data-file="${escapeHtml(t.file)}" data-dir="${escapeHtml(dir)}">
         <td class="tid">${escapeHtml(t.id)}</td>
@@ -361,11 +396,11 @@ async function showTaskDetail(dir, file) {
     let html = `<div class="panel">
       <h3 style="margin-top:0"><span class="tid">${escapeHtml(t.id || file)}</span> — ${escapeHtml(t.name || "")}</h3>
       <p class="muted">${escapeHtml(t.description || "")}</p>
-      <label>Prompt given to the agent</label>
+      <label>The job the agent is given</label>
       <pre class="out">${escapeHtml(t.prompt || "")}</pre>
-      <label>Oracles</label>
+      <label>The checks it must not break (technical definition)</label>
       <pre class="out">${escapeHtml(JSON.stringify(t.oracles || [], null, 2))}</pre>
-      <label>Initial workspace</label>`;
+      <label>The starting files</label>`;
     for (const [path, content] of Object.entries(t.workspace || {})) {
       html += `<details><summary class="mono" style="cursor:pointer">${escapeHtml(path)}</summary>
         <pre class="out">${escapeHtml(content)}</pre></details>`;
@@ -383,7 +418,7 @@ async function loadTrajList() {
   try {
     const data = await api("/api/trajectories");
     let html = `<div class="panel"><table>
-      <tr><th>Path</th><th>Steps</th><th>Agent</th><th>Model</th></tr>`;
+      <tr><th>Session file</th><th>Steps</th><th>Agent</th><th>Model</th></tr>`;
     for (const t of data.trajectories) {
       html += `<tr class="clickable" data-path="${escapeHtml(t.path)}">
         <td class="mono">${escapeHtml(t.path)}</td>
@@ -413,11 +448,11 @@ async function showTrajDetail(path) {
     if (t.metadata && Object.keys(t.metadata).length) {
       html += `<pre class="out">${escapeHtml(JSON.stringify(t.metadata, null, 2))}</pre>`;
     }
-    html += `<table><tr><th>#</th><th>Tool</th><th></th><th>Args</th></tr>`;
+    html += `<table><tr><th>#</th><th>Tool</th><th></th><th>Details</th></tr>`;
     (t.steps || []).forEach((s, i) => {
       let badge = "";
-      if (EDIT_TOOLS.includes(s.tool) || s.type === "file_edit") badge = `<span class="badge edit">edit</span>`;
-      else if (CMD_TOOLS.includes(s.tool) || s.type === "command") badge = `<span class="badge cmd">cmd</span>`;
+      if (EDIT_TOOLS.includes(s.tool) || s.type === "file_edit") badge = `<span class="badge edit">changed a file</span>`;
+      else if (CMD_TOOLS.includes(s.tool) || s.type === "command") badge = `<span class="badge cmd">ran a command</span>`;
       html += `<tr>
         <td class="muted">${i}</td>
         <td class="mono">${escapeHtml(s.tool || s.type || "?")}</td>
@@ -445,7 +480,7 @@ async function loadMatrixConfigs() {
       opt.textContent = `${c.name} (${c.path}, ${c.cells} cells${c.has_baseline ? ", baseline" : ""})`;
       sel.appendChild(opt);
     }
-    if (!data.configs.length) sel.innerHTML = "<option value=''>(no matrix configs found)</option>";
+    if (!data.configs.length) sel.innerHTML = "<option value=''>(no comparison setups found in benchmarks/ or configs/)</option>";
   } catch (e) {
     $("matrix-err").textContent = e.message;
   }
@@ -454,16 +489,16 @@ async function loadMatrixConfigs() {
 $("matrix-run").addEventListener("click", async () => {
   const btn = $("matrix-run");
   $("matrix-err").textContent = "";
-  $("matrix-results").innerHTML = "<p class='muted'>Replaying matrix cells…</p>";
+  $("matrix-results").innerHTML = "<p class='muted'>Re-checking every session — hang tight…</p>";
   btn.disabled = true;
   try {
     const result = await postJson("/api/matrix", { config: $("matrix-config").value });
     const overall = result.overall_pass_rate;
     let html = `<div class="banner ${overall >= 0.5 ? "pass" : "fail"}">
-      <span>${escapeHtml(result.name || "matrix")}</span>
-      <span>overall pass rate <span class="rate ${rateClass(overall)}">${pct(overall)}</span></span></div>`;
+      <span>${escapeHtml(result.name || "comparison")}</span>
+      <span>overall, <span class="rate ${rateClass(overall)}">${pct(overall)}</span> of checks passed</span></div>`;
     html += `<div class="panel"><table>
-      <tr><th>Model</th><th>Prompt</th><th>Tasks</th><th>Pass rate</th></tr>`;
+      <tr><th>Model / agent</th><th>Prompt</th><th>Scenarios</th><th>How well it behaved</th></tr>`;
     for (const c of result.cells) {
       html += `<tr>
         <td class="mono">${escapeHtml(c.model)}</td>
@@ -487,8 +522,8 @@ $("matrix-run").addEventListener("click", async () => {
     if (result.drift) {
       const d = result.drift;
       html += `<div class="banner ${d.drift_detected ? "fail" : "pass"}">
-        <span>${d.drift_detected ? "SCORE DRIFT DETECTED" : "No score drift"}</span>
-        <span class="muted">threshold ${pct(d.threshold ?? 0)}</span></div>`;
+        <span>${d.drift_detected ? "Heads up: results shifted noticeably from your baseline" : "Results match your baseline — nothing has quietly gotten worse"}</span>
+        <span class="muted">alert threshold ${pct(d.threshold ?? 0)}</span></div>`;
       if (d.findings && d.findings.length) {
         html += `<div class="panel"><pre class="out">${escapeHtml(JSON.stringify(d.findings, null, 2))}</pre></div>`;
       }
@@ -520,17 +555,17 @@ async function loadHistory() {
     const data = await api("/api/history");
     historyRuns = data.runs;
     if (!historyRuns.length) {
-      $("history-summary").innerHTML = "<p class='muted' style='margin:0'>No gate runs recorded yet — run the gate and results land here (persisted to <code>.agentbench/history.jsonl</code>).</p>";
+      $("history-summary").innerHTML = "<p class='muted' style='margin:0'>Nothing here yet — run a check on the <b>Run checks</b> tab and it lands here automatically. History is saved with your project, so it survives restarts.</p>";
       $("history-list").innerHTML = "";
       return;
     }
     const rates = historyRuns.map((r) => r.report.tasks_total ? r.report.tasks_passed / r.report.tasks_total : 0).reverse();
     $("history-summary").innerHTML =
-      `<label style="margin-top:0">Pass rate — last ${historyRuns.length} runs (oldest → newest)</label>` +
+      `<label style="margin-top:0">How your agents have been behaving — last ${historyRuns.length} checks (oldest → newest)</label>` +
       sparkline(rates) +
-      `<span class="muted">persisted to .agentbench/history.jsonl in the project root</span>`;
+      `<span class="muted">saved with your project (.agentbench/history.jsonl) — click any row to reopen the full report</span>`;
     let html = `<div class="panel"><table>
-      <tr><th>When (UTC)</th><th>Trajectory</th><th>Result</th><th>Tasks</th></tr>`;
+      <tr><th>When (UTC)</th><th>Session</th><th>Result</th><th>Scenarios</th></tr>`;
     historyRuns.forEach((r, i) => {
       const cls = r.report.passed ? "pass" : "fail";
       html += `<tr class="clickable" data-i="${i}">
