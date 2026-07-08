@@ -26,7 +26,11 @@ agentbench run \
 # CI gate over all tasks
 agentbench gate --tasks tasks/ --trajectory tests/fixtures/trajectory_pass.json
 
-# Local dashboard: gate runner + task browser + trajectory recorder
+# Desktop client (native window): gate runner + task browser + recorder
+pip install -e ".[app]"
+agentbench app
+
+# Same client in a browser tab
 agentbench ui
 
 # Run tests

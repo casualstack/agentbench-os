@@ -22,6 +22,12 @@
   header h1 { margin: 0; font-size: 18px; }
   header h1 span { color: var(--accent); }
   header .sub { color: var(--muted); font-size: 13px; }
+  .rootbar { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+  .rootbar input {
+    width: 340px; background: var(--bg); color: var(--muted);
+    border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px;
+    font-family: ui-monospace, Consolas, monospace; font-size: 12px;
+  }
   nav { display: flex; gap: 4px; padding: 12px 24px 0; }
   nav button {
     background: none; border: 1px solid transparent; border-bottom: none;
@@ -92,7 +98,12 @@
 <body>
 <header>
   <h1>Agent<span>Bench</span></h1>
-  <div class="sub">property-based CI gates for agent trajectories · local dashboard</div>
+  <div class="sub">property-based CI gates for agent trajectories</div>
+  <div class="rootbar">
+    <input type="text" id="root-path" title="Project root" spellcheck="false">
+    <button class="ghost" id="root-browse" style="display:none;margin:0">Browse…</button>
+    <button class="ghost" id="root-open" style="margin:0">Open</button>
+  </div>
 </header>
 <nav>
   <button data-tab="gate" class="active">Gate runner</button>
@@ -311,6 +322,42 @@ $("rec-use").addEventListener("click", () => {
   document.querySelector('nav button[data-tab="gate"]').click();
 });
 
+// --- project root (desktop client) ---
+async function loadRoot() {
+  try {
+    const data = await api("/api/root");
+    $("root-path").value = data.root;
+  } catch (e) { /* header stays empty */ }
+}
+
+$("root-open").addEventListener("click", async () => {
+  try {
+    const data = await api("/api/root", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: $("root-path").value.trim() }),
+    });
+    $("root-path").value = data.root;
+    loadTrajectories();
+    loadTasks();
+  } catch (e) {
+    alert(e.message);
+  }
+});
+
+window.addEventListener("pywebviewready", () => {
+  const browse = $("root-browse");
+  browse.style.display = "inline-block";
+  browse.addEventListener("click", async () => {
+    const folder = await window.pywebview.api.pick_folder();
+    if (folder) {
+      $("root-path").value = folder;
+      $("root-open").click();
+    }
+  });
+});
+
+loadRoot();
 loadTrajectories();
 loadTasks();
 </script>

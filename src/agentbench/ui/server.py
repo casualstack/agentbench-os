@@ -115,6 +115,8 @@ class UIHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         if parsed.path in ("/", "/index.html"):
             self._serve_index()
+        elif parsed.path == "/api/root":
+            self._send_json({"root": str(self.root)})
         elif parsed.path == "/api/tasks":
             self._api_tasks(parse_qs(parsed.query))
         elif parsed.path == "/api/trajectories":
@@ -132,6 +134,8 @@ class UIHandler(BaseHTTPRequestHandler):
                 self._api_gate(self._read_json_body())
             elif self.path == "/api/record":
                 self._api_record(self._read_json_body())
+            elif self.path == "/api/root":
+                self._api_set_root(self._read_json_body())
             else:
                 self._send_error_json("not found", HTTPStatus.NOT_FOUND)
         except (ValueError, OSError, json.JSONDecodeError) as exc:
@@ -212,6 +216,17 @@ class UIHandler(BaseHTTPRequestHandler):
             evaluator.evaluate(EvalTask.from_file(p), trajectory) for p in task_paths
         ]
         self._send_json(_gate_report(results))
+
+    def _api_set_root(self, body: dict[str, Any]) -> None:
+        """Switch the project root (desktop client 'open project')."""
+        raw = body.get("path")
+        if not isinstance(raw, str) or not raw.strip():
+            raise ValueError("provide 'path'")
+        path = Path(raw).expanduser().resolve()
+        if not path.is_dir():
+            raise ValueError(f"not a directory: {raw}")
+        type(self).root = path
+        self._send_json({"root": str(path)})
 
     def _api_record(self, body: dict[str, Any]) -> None:
         jsonl = body.get("jsonl")

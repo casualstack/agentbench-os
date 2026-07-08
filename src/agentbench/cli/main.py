@@ -98,6 +98,12 @@ def cmd_ui(args: argparse.Namespace) -> int:
     )
 
 
+def cmd_app(args: argparse.Namespace) -> int:
+    from agentbench.ui.app import run_app
+
+    return run_app(args.root, tasks_dir=str(args.tasks))
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="agentbench",
@@ -166,6 +172,19 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-browser", action="store_true", help="Do not open a browser tab"
     )
     ui_parser.set_defaults(func=cmd_ui)
+
+    app_parser = sub.add_parser(
+        "app",
+        help="Launch the desktop client (native window; needs agentbench[app])",
+    )
+    app_parser.add_argument(
+        "--root",
+        type=Path,
+        default=Path("."),
+        help="Project root to open (switchable in-app)",
+    )
+    app_parser.add_argument("--tasks", type=Path, default=Path("tasks"), help="Tasks directory")
+    app_parser.set_defaults(func=cmd_app)
 
     return parser
 

@@ -44,3 +44,9 @@ examples/casualstack-brand/
 
 # Local run artifacts
 .agentbench/
+
+# Local launch drafts
+launch/
+
+# PyInstaller desktop build
+*.spec

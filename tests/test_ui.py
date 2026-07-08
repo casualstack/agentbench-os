@@ -88,6 +88,21 @@ def test_api_gate_rejects_escaping_path(ui_base_url):
     assert excinfo.value.code == 400
 
 
+def test_api_root_switch(tmp_path):
+    server = make_server(REPO_ROOT, tasks_dir="tasks", port=0)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    base = f"http://127.0.0.1:{server.server_address[1]}"
+    try:
+        assert _get(base + "/api/root")["root"] == str(REPO_ROOT)
+        switched = _post(base + "/api/root", {"path": str(tmp_path)})
+        assert switched["root"] == str(tmp_path.resolve())
+        assert _get(base + "/api/root")["root"] == str(tmp_path.resolve())
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
 def test_api_record_normalizes_jsonl(ui_base_url):
     jsonl = "\n".join(
         [

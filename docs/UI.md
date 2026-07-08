@@ -1,7 +1,31 @@
-# AgentBench Dashboard (`agentbench ui`)
+# AgentBench Client (`agentbench app` / `agentbench ui`)
 
-A local, zero-dependency client bundled with the package. One command gives you a
-gate runner, task browser, and trajectory recorder in the browser.
+An all-in-one client bundled with the package: gate runner, task browser, and
+trajectory recorder.
+
+## Desktop app
+
+Native window, no browser needed:
+
+```bash
+pip install -e ".[app]"      # adds pywebview
+agentbench app               # opens the AgentBench window
+agentbench app --root /path/to/target-repo
+```
+
+Use **Browse…** in the header to open any project folder; the whole client
+(tasks, trajectories, gate runs) re-targets to it.
+
+Build a standalone `AgentBench.exe` (Windows):
+
+```powershell
+pip install -e ".[app]" pyinstaller
+.\scripts\build_desktop.ps1    # → dist\AgentBench.exe
+```
+
+## Browser mode
+
+The same client served to a browser tab:
 
 ```bash
 agentbench ui                 # serves http://127.0.0.1:8321 and opens a tab
