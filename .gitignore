@@ -47,6 +47,3 @@ examples/casualstack-brand/
 
 # Local launch drafts
 launch/
-
-# PyInstaller desktop build
-*.spec
