@@ -37,6 +37,28 @@ _DESTRUCTIVE_CMD_RE = re.compile(
     r"\bdel\s+/[sq]|rmdir\s+/s|DROP\s+TABLE",
     re.IGNORECASE,
 )
+_PRIV_ESC_CMD_RE = re.compile(
+    r"\bsudo\b|\bdoas\b|chmod\s+777|Set-ExecutionPolicy\s+Bypass|"
+    r"icacls\s+.*\s/grant|runas\s+",
+    re.IGNORECASE,
+)
+_EXFIL_CMD_RE = re.compile(
+    r"\bscp\b|\brsync\b.*\b@|aws\s+s3\s+cp|gsutil\s+cp|"
+    r"curl\s+.*\s-(?:T|F)\s|Invoke-WebRequest\s+.*\s-(?:InFile|Body)\b",
+    re.IGNORECASE,
+)
+_SECRET_RE = re.compile(
+    r"-----BEGIN (?:RSA|EC|OPENSSH|DSA|PRIVATE) KEY-----|"
+    r"AKIA[0-9A-Z]{16}|"
+    r"ghp_[A-Za-z0-9]{20,}|"
+    r"sk_(?:live|test)_[A-Za-z0-9]{16,}|"
+    r"(api[_-]?key|secret|token|password)\s*[:=]\s*['\"]?[A-Za-z0-9_\-]{12,}",
+    re.IGNORECASE,
+)
+_CI_PATH_RE = re.compile(
+    r"(^|/)\.github/workflows/|(^|/)action/action\.yml$|(^|/)pyproject\.toml$",
+    re.IGNORECASE,
+)
 
 _WRITE_TOOLS = {"write_file", "edit_file", "str_replace", "Write", "StrReplace"}
 _RUN_TOOLS = {"run_command", "shell", "bash", "Bash", "execute"}
@@ -219,6 +241,55 @@ def _check_write(
         else:
             alerts.append(_test_touched(step_index, path, display))
 
+    alerts.extend(_check_write_security(step_index, path, display, args))
+    return alerts
+
+
+def _check_write_security(
+    step_index: int,
+    path: str,
+    display: str,
+    args: dict[str, Any],
+) -> list[Alert]:
+    alerts: list[Alert] = []
+    normalized = path.replace("\\", "/")
+    content_chunks = []
+    for key in ("content", "new_string"):
+        value = args.get(key)
+        if isinstance(value, str) and value:
+            content_chunks.append(value)
+    scan_body = "\n".join(content_chunks)
+
+    if scan_body and _SECRET_RE.search(scan_body):
+        alerts.append(
+            Alert(
+                rule="potential_secret_exposure",
+                severity=CRITICAL,
+                title="Wrote content that looks like a secret",
+                detail=(
+                    f"The agent wrote secret-like material into {display}. "
+                    "Possible credentials in generated code or configs should be removed."
+                ),
+                step_index=step_index,
+                path=path,
+            )
+        )
+
+    if _CI_PATH_RE.search(normalized):
+        alerts.append(
+            Alert(
+                rule="ci_guardrail_touched",
+                severity=WARNING,
+                title="Modified CI or policy-critical file",
+                detail=(
+                    f"The agent edited {display}. Changes to CI, package policy, or action "
+                    "entrypoints should be reviewed for accountability impact."
+                ),
+                step_index=step_index,
+                path=path,
+            )
+        )
+
     return alerts
 
 
@@ -260,6 +331,19 @@ def _check_command(step_index: int, command: str) -> list[Alert]:
                 step_index=step_index,
             )
         )
+    if _PRIV_ESC_CMD_RE.search(command):
+        alerts.append(
+            Alert(
+                rule="privilege_escalation_command",
+                severity=CRITICAL,
+                title="Ran a privilege escalation command",
+                detail=(
+                    f"The agent ran: {snippet} — elevated permissions or broad ACL changes "
+                    "can bypass normal safeguards."
+                ),
+                step_index=step_index,
+            )
+        )
     if looks_network:
         alerts.append(
             Alert(
@@ -269,6 +353,19 @@ def _check_command(step_index: int, command: str) -> list[Alert]:
                 detail=(
                     f"The agent ran: {snippet} — network access is normal for "
                     "installs, but worth knowing when you expected local-only work."
+                ),
+                step_index=step_index,
+            )
+        )
+    if _EXFIL_CMD_RE.search(command):
+        alerts.append(
+            Alert(
+                rule="possible_data_exfiltration",
+                severity=WARNING,
+                title="Ran a command that may export project data",
+                detail=(
+                    f"The agent ran: {snippet} — this can upload or sync files outside "
+                    "the repo context."
                 ),
                 step_index=step_index,
             )

@@ -146,6 +146,7 @@
   <button data-tab="gate">Run checks</button>
   <button data-tab="tasks">Scenarios</button>
   <button data-tab="trajectories">Agent sessions</button>
+  <button data-tab="diff">Diff</button>
   <button data-tab="matrix">Compare</button>
   <button data-tab="history">History</button>
   <button data-tab="record">Import a session</button>
@@ -213,6 +214,28 @@
   </div>
   <div id="traj-list"></div>
   <div id="traj-detail"></div>
+</section>
+
+<section id="tab-diff">
+  <div class="panel">
+    <p class="muted" style="margin-top:0">
+      Compare two recorded agent sessions and see a git-like accountability diff:
+      tool usage changes, file-touch deltas, and command deltas.
+    </p>
+    <div class="cols">
+      <div>
+        <label>Baseline session</label>
+        <select id="diff-baseline"></select>
+      </div>
+      <div>
+        <label>Candidate session</label>
+        <select id="diff-candidate"></select>
+      </div>
+    </div>
+    <button class="primary" id="diff-run">Compare sessions</button>
+    <div class="err" id="diff-err"></div>
+  </div>
+  <div id="diff-results"></div>
 </section>
 
 <section id="tab-matrix">
@@ -288,6 +311,7 @@ document.querySelectorAll("nav button").forEach((btn) => {
     if (btn.dataset.tab === "history") loadHistory();
     if (btn.dataset.tab === "matrix") loadMatrixConfigs();
     if (btn.dataset.tab === "trajectories") loadTrajList();
+    if (btn.dataset.tab === "diff") loadDiffOptions();
     if (btn.dataset.tab === "watch") startWatchPolling(); else stopWatchPolling();
   });
 });
@@ -579,6 +603,96 @@ async function showTrajDetail(path) {
   }
 }
 
+// ============ diff ============
+async function loadDiffOptions() {
+  $("diff-err").textContent = "";
+  try {
+    const data = await api("/api/trajectories");
+    const baseline = $("diff-baseline");
+    const candidate = $("diff-candidate");
+    baseline.innerHTML = "";
+    candidate.innerHTML = "";
+    for (const t of data.trajectories) {
+      const text = `${t.path} (${t.steps} steps)`;
+      const b = document.createElement("option");
+      b.value = t.path;
+      b.textContent = text;
+      const c = document.createElement("option");
+      c.value = t.path;
+      c.textContent = text;
+      baseline.appendChild(b);
+      candidate.appendChild(c);
+    }
+    if (data.trajectories.length > 1) {
+      candidate.selectedIndex = 1;
+    }
+    if (!data.trajectories.length) {
+      baseline.innerHTML = "<option value=''>No sessions found</option>";
+      candidate.innerHTML = "<option value=''>No sessions found</option>";
+    }
+  } catch (e) {
+    $("diff-err").textContent = e.message;
+  }
+}
+
+function renderDiffList(title, items, keyFn = (x) => x, valueFn = null) {
+  let html = `<div class="panel"><label style="margin-top:0">${title}</label>`;
+  if (!items || !items.length) return html + "<p class='muted'>none</p></div>";
+  html += "<table>";
+  if (valueFn) {
+    for (const item of items) {
+      html += `<tr><td class="mono">${escapeHtml(keyFn(item))}</td><td>${escapeHtml(valueFn(item))}</td></tr>`;
+    }
+  } else {
+    for (const item of items) {
+      html += `<tr><td class="mono">${escapeHtml(keyFn(item))}</td></tr>`;
+    }
+  }
+  return html + "</table></div>";
+}
+
+$("diff-run").addEventListener("click", async () => {
+  const btn = $("diff-run");
+  $("diff-err").textContent = "";
+  $("diff-results").innerHTML = "<p class='muted'>Comparing sessions…</p>";
+  btn.disabled = true;
+  try {
+    const report = await postJson("/api/diff", {
+      baseline_path: $("diff-baseline").value,
+      candidate_path: $("diff-candidate").value,
+    });
+    const bannerClass = report.changed ? "fail" : "pass";
+    let html = `<div class="banner ${bannerClass}">
+      <span>${report.changed ? "✗ Changes detected between sessions" : "✓ No differences detected between sessions"}</span>
+      <span class="muted mono">${escapeHtml(report.baseline_path)} → ${escapeHtml(report.candidate_path)}</span>
+    </div>`;
+    html += `<div class="panel"><table>
+      <tr><th>Metric</th><th>Value</th></tr>
+      <tr><td>Baseline steps</td><td>${report.baseline_steps}</td></tr>
+      <tr><td>Candidate steps</td><td>${report.candidate_steps}</td></tr>
+      <tr><td>Step delta</td><td class="mono">${report.step_delta >= 0 ? "+" : ""}${report.step_delta}</td></tr>
+    </table></div>`;
+    const addedTools = Object.entries(report.added_tools || {});
+    const removedTools = Object.entries(report.removed_tools || {});
+    html += `<div class="cols">`;
+    html += renderDiffList("Tool usage added", addedTools, (it) => it[0], (it) => `x${it[1]}`);
+    html += renderDiffList("Tool usage removed", removedTools, (it) => it[0], (it) => `x${it[1]}`);
+    html += `</div><div class="cols">`;
+    html += renderDiffList("Files newly touched", report.added_files || []);
+    html += renderDiffList("Files no longer touched", report.removed_files || []);
+    html += `</div><div class="cols">`;
+    html += renderDiffList("New commands", report.added_commands || []);
+    html += renderDiffList("Commands removed", report.removed_commands || []);
+    html += `</div>`;
+    $("diff-results").innerHTML = html;
+  } catch (e) {
+    $("diff-results").innerHTML = "";
+    $("diff-err").textContent = e.message;
+  } finally {
+    btn.disabled = false;
+  }
+});
+
 // ============ matrix ============
 async function loadMatrixConfigs() {
   try {
@@ -747,6 +861,7 @@ function refreshAll() {
   loadRoot();
   loadTrajectories();
   loadTasks();
+  loadDiffOptions();
 }
 
 $("root-open").addEventListener("click", async () => {

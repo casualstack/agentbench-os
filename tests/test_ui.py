@@ -127,6 +127,18 @@ def test_api_matrix_configs(ui_base_url):
     assert fixture["has_baseline"] is True
 
 
+def test_api_diff(ui_base_url):
+    report = _post(
+        ui_base_url + "/api/diff",
+        {
+            "baseline_path": "tests/fixtures/trajectory_pass.json",
+            "candidate_path": "tests/fixtures/trajectory_regression.json",
+        },
+    )
+    assert report["changed"] is True
+    assert report["added_files"] or report["removed_files"] or report["added_commands"]
+
+
 def test_gate_run_recorded_in_history(ui_base_url):
     _post(
         ui_base_url + "/api/gate",
