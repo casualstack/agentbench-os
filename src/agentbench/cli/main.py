@@ -104,6 +104,74 @@ def cmd_app(args: argparse.Namespace) -> int:
     return run_app(args.root, tasks_dir=str(args.tasks))
 
 
+_SEVERITY_MARK = {"critical": "[!]", "warning": "[~]"}
+
+
+def _print_watch_events(events: list) -> int:
+    """Print alerts in plain English; return count of critical ones."""
+    critical = 0
+    for event in events:
+        for alert in event.alerts:
+            if alert.severity == "critical":
+                critical += 1
+            where = event.cwd or str(event.path)
+            mark = _SEVERITY_MARK.get(alert.severity, "[?]")
+            print(f"{mark} {alert.title} — {event.agent} session {event.session_id[:8]} in {where}")
+            print(f"    {alert.detail}")
+    return critical
+
+
+def cmd_watch(args: argparse.Namespace) -> int:
+    import time
+
+    from agentbench.watch.watcher import SessionWatcher
+
+    # Alert copy uses em dashes; legacy Windows consoles default to cp1252.
+    if hasattr(sys.stdout, "reconfigure"):
+        try:
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        except (OSError, ValueError):
+            pass
+
+    watcher = SessionWatcher(project=args.project, skip_existing=args.live_only)
+
+    detected = watcher.detected_agents()
+    if not detected:
+        print(
+            "No AI coding agents found on this machine yet.\n"
+            "AgentBench looks for Claude Code sessions under ~/.claude/projects."
+        )
+        return 1
+
+    names = []
+    for agent in detected:
+        if agent == "claude-code":
+            names.append("Claude Code")
+        elif agent == "cursor":
+            names.append("Cursor (detected — support coming soon)")
+    print(f"Found: {', '.join(names)}")
+
+    events = watcher.poll()  # first poll covers existing session history
+    total_sessions = len(watcher.sessions())
+    scope = f" for {args.project}" if args.project else ""
+    print(f"Checked {total_sessions} recorded session(s){scope}.")
+    critical = _print_watch_events(events)
+    if not any(e.alerts for e in events):
+        print("No problems found in recorded sessions.")
+
+    if args.once:
+        return 1 if critical and args.fail_on_alert else 0
+
+    print("\nWatching for new agent activity... (Ctrl+C to stop)")
+    try:
+        while True:
+            time.sleep(args.interval)
+            critical += _print_watch_events(watcher.poll())
+    except KeyboardInterrupt:
+        print("\nStopped watching.")
+    return 1 if critical and args.fail_on_alert else 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="agentbench",
@@ -185,6 +253,38 @@ def build_parser() -> argparse.ArgumentParser:
     )
     app_parser.add_argument("--tasks", type=Path, default=Path("tasks"), help="Tasks directory")
     app_parser.set_defaults(func=cmd_app)
+
+    watch_parser = sub.add_parser(
+        "watch",
+        help="Auto-detect agent sessions on this machine and flag risky behavior",
+    )
+    watch_parser.add_argument(
+        "--project",
+        type=Path,
+        help="Only watch sessions working in this folder (default: all)",
+    )
+    watch_parser.add_argument(
+        "--once",
+        action="store_true",
+        help="Check recorded sessions and exit instead of watching live",
+    )
+    watch_parser.add_argument(
+        "--live-only",
+        action="store_true",
+        help="Skip recorded history; only alert on activity from now on",
+    )
+    watch_parser.add_argument(
+        "--interval",
+        type=float,
+        default=2.0,
+        help="Seconds between checks while watching (default: 2)",
+    )
+    watch_parser.add_argument(
+        "--fail-on-alert",
+        action="store_true",
+        help="Exit 1 if any critical alert was raised",
+    )
+    watch_parser.set_defaults(func=cmd_watch)
 
     return parser
 

@@ -27,6 +27,7 @@ agentbench run \
 agentbench gate --tasks tasks/ --trajectory tests/fixtures/trajectory_pass.json
 
 # Desktop client (native window): gate runner + task browser + recorder
+# Prebuilt Windows/macOS/Linux downloads: see docs/UI.md
 pip install -e ".[app]"
 agentbench app
 

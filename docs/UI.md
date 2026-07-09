@@ -16,12 +16,37 @@ agentbench app --root /path/to/target-repo
 Use **Browse…** in the header to open any project folder; the whole client
 (tasks, trajectories, gate runs) re-targets to it.
 
-Build a standalone `AgentBench.exe` (Windows):
+### Download / build the desktop app
+
+AgentBench ships standalone builds for Windows, macOS, and Linux — no Python
+install required to run them.
+
+**Download a build:** every tagged release (`vX.Y.Z`) attaches zipped builds
+for all three platforms to the [GitHub release](../../releases). A build from
+any commit is also available as a CI artifact: open the
+[Desktop Builds workflow run](../../actions/workflows/desktop-builds.yml) for
+that commit and download `AgentBench-windows`, `AgentBench-macos`, or
+`AgentBench-linux`.
+
+**Build locally:**
 
 ```powershell
+# Windows
 pip install -e ".[app]" pyinstaller
 .\scripts\build_desktop.ps1    # → dist\AgentBench.exe
 ```
+
+```bash
+# macOS / Linux
+pip install -e ".[app]" pyinstaller
+./scripts/build_desktop.sh     # → dist/AgentBench.app (macOS) or dist/AgentBench (Linux)
+```
+
+Both scripts run the same PyInstaller options as the CI build
+(`AgentBench.spec`), just invoked directly instead of through the spec file.
+Linux additionally needs pywebview's GTK backend system packages
+(GObject introspection + WebKitGTK) — see the `apt-get install` step in
+`.github/workflows/desktop-builds.yml` for the current package list.
 
 ## Browser mode
 

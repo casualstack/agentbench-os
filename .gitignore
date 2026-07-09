@@ -47,3 +47,8 @@ examples/casualstack-brand/
 
 # Local launch drafts
 launch/
+
+# PyInstaller desktop build (AgentBench.spec is the committed build config —
+# only ignore other, incidentally-generated .spec files)
+*.spec
+!/AgentBench.spec
