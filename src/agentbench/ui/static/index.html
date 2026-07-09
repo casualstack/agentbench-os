@@ -109,6 +109,26 @@
   .badge { font-size: 11px; border-radius: 4px; padding: 1px 6px; font-weight: 600; }
   .badge.edit { background: rgba(88,166,255,.15); color: var(--accent); }
   .badge.cmd { background: rgba(210,153,34,.15); color: var(--warn); }
+
+  .session-group { margin-bottom: 18px; }
+  .session-head {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
+    color: var(--muted); font-size: 13px;
+  }
+  .session-head .sid { color: var(--text); font-weight: 600; }
+  .alert-card {
+    border: 1px solid var(--border); border-left: 4px solid var(--muted);
+    border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; background: var(--panel);
+  }
+  .alert-card.critical { border-left-color: var(--fail); }
+  .alert-card.warning { border-left-color: var(--warn); }
+  .alert-card .alert-title { font-weight: 600; display: flex; gap: 8px; align-items: baseline; }
+  .alert-card.critical .alert-title { color: var(--fail); }
+  .alert-card.warning .alert-title { color: var(--warn); }
+  .alert-card .alert-detail { color: var(--muted); margin-top: 4px; font-size: 13px; }
+  .alert-card .alert-path { font-family: ui-monospace, Consolas, monospace; font-size: 12px; margin-top: 4px; color: var(--muted); }
+  .sev-tag { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+  .clean-line { color: var(--pass); padding: 10px 14px; }
 </style>
 </head>
 <body>
@@ -122,7 +142,8 @@
   </div>
 </header>
 <nav>
-  <button data-tab="gate" class="active">Run checks</button>
+  <button data-tab="watch" class="active">Live watch</button>
+  <button data-tab="gate">Run checks</button>
   <button data-tab="tasks">Scenarios</button>
   <button data-tab="trajectories">Agent sessions</button>
   <button data-tab="matrix">Compare</button>
@@ -131,7 +152,19 @@
 </nav>
 <main>
 
-<section id="tab-gate" class="active">
+<section id="tab-watch" class="active">
+  <div class="panel">
+    <p class="muted" style="margin-top:0">
+      AgentBench looks for Claude Code sessions on this machine automatically — nothing to
+      configure. As your agent works, it flags anything worth a second look: deleted test
+      assertions, files touched outside your project, destructive commands, and more.
+    </p>
+    <div id="watch-status" class="muted">Looking for agent sessions…</div>
+  </div>
+  <div id="watch-feed"></div>
+</section>
+
+<section id="tab-gate">
   <div class="panel">
     <p class="muted" style="margin-top:0">
       When an AI agent edits your code, it can quietly cheat — delete a failing test instead of
@@ -255,8 +288,86 @@ document.querySelectorAll("nav button").forEach((btn) => {
     if (btn.dataset.tab === "history") loadHistory();
     if (btn.dataset.tab === "matrix") loadMatrixConfigs();
     if (btn.dataset.tab === "trajectories") loadTrajList();
+    if (btn.dataset.tab === "watch") startWatchPolling(); else stopWatchPolling();
   });
 });
+
+// ============ live watch ============
+let watchTimer = null;
+
+function startWatchPolling() {
+  loadWatch();
+  if (watchTimer) clearInterval(watchTimer);
+  watchTimer = setInterval(loadWatch, 3000);
+}
+function stopWatchPolling() {
+  if (watchTimer) { clearInterval(watchTimer); watchTimer = null; }
+}
+
+function shortId(id) { return (id || "").slice(0, 8); }
+
+function renderSessionGroup(s) {
+  const model = s.model ? escapeHtml(s.model) : "unknown model";
+  const cwd = s.cwd ? escapeHtml(s.cwd) : "unknown folder";
+  let html = `<div class="session-group">
+    <div class="session-head">
+      <span class="sid mono">${escapeHtml(shortId(s.session_id))}</span>
+      <span>${cwd}</span>
+      <span class="muted">· ${model}</span>
+    </div>`;
+  for (const a of (s.alerts || [])) {
+    html += `<div class="alert-card ${a.severity}">
+      <div class="alert-title"><span class="sev-tag">${escapeHtml(a.severity)}</span>${escapeHtml(a.title)}</div>
+      <div class="alert-detail">${escapeHtml(a.detail)}</div>
+      ${a.path ? `<div class="alert-path">${escapeHtml(a.path)}</div>` : ""}
+    </div>`;
+  }
+  html += `</div>`;
+  return html;
+}
+
+function renderWatch(data) {
+  const sessions = data.sessions || [];
+  const agents = data.detected_agents || [];
+
+  if (!agents.length) {
+    $("watch-status").innerHTML =
+      "No AI coding agent sessions found yet. AgentBench looks for Claude Code logs under " +
+      "<span class=\"mono\">~/.claude/projects</span> — start a session with Claude Code and " +
+      "it'll show up here automatically, no setup needed.";
+    $("watch-feed").innerHTML = "";
+    return;
+  }
+
+  let status = `Watching Claude Code — ${sessions.length} session${sessions.length === 1 ? "" : "s"} checked`;
+  if (agents.includes("cursor")) {
+    status += ` <span class="muted">· Cursor detected — support coming soon</span>`;
+  }
+  $("watch-status").innerHTML = status;
+
+  if (!sessions.length) {
+    $("watch-feed").innerHTML = "<p class='muted'>No Claude Code sessions found yet — start one and it'll show up here.</p>";
+    return;
+  }
+
+  const withAlerts = sessions.filter((s) => (s.alerts || []).length);
+  const clean = sessions.filter((s) => !(s.alerts || []).length);
+
+  let html = "";
+  for (const s of withAlerts) html += renderSessionGroup(s);
+  if (clean.length) {
+    html += `<div class="panel clean-line">${clean.length} session${clean.length === 1 ? "" : "s"} look${clean.length === 1 ? "s" : ""} clean.</div>`;
+  }
+  $("watch-feed").innerHTML = html;
+}
+
+async function loadWatch() {
+  try {
+    renderWatch(await api("/api/watch"));
+  } catch (e) {
+    $("watch-status").innerHTML = `<span class="err">${escapeHtml(e.message)}</span>`;
+  }
+}
 
 function rateClass(rate) {
   return rate >= 0.8 ? "good" : rate >= 0.5 ? "mid" : "bad";
@@ -663,6 +774,7 @@ window.addEventListener("pywebviewready", () => {
 });
 
 refreshAll();
+startWatchPolling();
 </script>
 </body>
 </html>

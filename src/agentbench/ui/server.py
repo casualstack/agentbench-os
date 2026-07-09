@@ -23,6 +23,7 @@ from agentbench.matrix import MatrixConfig, MatrixRunner, detect_score_drift
 from agentbench.models.task import EvalTask, RunResult
 from agentbench.recorder import build_trajectory, steps_from_jsonl
 from agentbench.runner.trajectory import Trajectory
+from agentbench.watch.watcher import SessionWatcher
 
 STATIC_DIR = Path(__file__).parent / "static"
 HISTORY_LIMIT = 50
@@ -30,6 +31,11 @@ HISTORY_LIMIT = 50
 # Matrix configs resolve trajectory/task paths relative to the process cwd,
 # so matrix runs chdir to the project root; serialize them.
 _MATRIX_LOCK = threading.Lock()
+
+# The SessionWatcher is shared across requests (one per server) and isn't
+# safe for concurrent poll()/sessions() calls; ThreadingHTTPServer handles
+# requests on separate threads, so guard both creation and use.
+_WATCH_LOCK = threading.Lock()
 
 
 def _resolve_under(root: Path, candidate: str) -> Path:
@@ -83,6 +89,10 @@ class UIHandler(BaseHTTPRequestHandler):
 
     root: Path
     tasks_dir: str
+    # Override in tests to point session discovery at a tmp dir instead of
+    # the real ~/.claude/projects.
+    watch_home: Path | None = None
+    _watcher: SessionWatcher | None = None
 
     # -- plumbing ---------------------------------------------------------
 
@@ -139,6 +149,8 @@ class UIHandler(BaseHTTPRequestHandler):
                 self._api_matrix_configs()
             elif parsed.path == "/api/history":
                 self._api_history()
+            elif parsed.path == "/api/watch":
+                self._api_watch()
             else:
                 self._send_error_json("not found", HTTPStatus.NOT_FOUND)
         except (ValueError, OSError, json.JSONDecodeError) as exc:
@@ -279,6 +291,26 @@ class UIHandler(BaseHTTPRequestHandler):
                     continue
         self._send_json({"runs": runs[-HISTORY_LIMIT:][::-1]})
 
+    # -- watch ----------------------------------------------------------------
+
+    def _api_watch(self) -> None:
+        """Poll the shared session watcher and return its current snapshot.
+
+        Watches every session on the machine (no project filter) so the
+        dashboard shows agent activity regardless of which project is open;
+        the first poll includes session history, not just new activity.
+        """
+        cls = type(self)
+        with _WATCH_LOCK:
+            if cls._watcher is None:
+                cls._watcher = SessionWatcher(home=cls.watch_home, skip_existing=False)
+            cls._watcher.poll()
+            payload = {
+                "detected_agents": cls._watcher.detected_agents(),
+                "sessions": cls._watcher.sessions(),
+            }
+        self._send_json(payload)
+
     # -- detail views ---------------------------------------------------------
 
     def _api_task_detail(self, query: dict[str, list[str]]) -> None:
@@ -370,12 +402,23 @@ def make_server(
     *,
     tasks_dir: str = "tasks",
     port: int = 0,
+    watch_home: Path | str | None = None,
 ) -> ThreadingHTTPServer:
-    """Create a dashboard server bound to 127.0.0.1 (port 0 = ephemeral)."""
+    """Create a dashboard server bound to 127.0.0.1 (port 0 = ephemeral).
+
+    ``watch_home`` overrides where the live-watch feature looks for agent
+    session logs (``<watch_home>/.claude/projects``); tests point this at a
+    tmp dir, real usage leaves it as ``None`` to use the user's home.
+    """
     handler = type(
         "BoundUIHandler",
         (UIHandler,),
-        {"root": Path(root).resolve(), "tasks_dir": tasks_dir},
+        {
+            "root": Path(root).resolve(),
+            "tasks_dir": tasks_dir,
+            "watch_home": Path(watch_home) if watch_home is not None else None,
+            "_watcher": None,
+        },
     )
     return ThreadingHTTPServer(("127.0.0.1", port), handler)
 
