@@ -26,6 +26,12 @@ agentbench run \
 # CI gate over all tasks
 agentbench gate --tasks tasks/ --trajectory tests/fixtures/trajectory_pass.json
 
+# Git-like accountability diff between trajectories
+agentbench diff \
+  --baseline tests/fixtures/trajectory_pass.json \
+  --candidate tests/fixtures/trajectory_regression.json \
+  --output build/diff-report.md
+
 # Desktop client (native window): gate runner + task browser + recorder
 # Prebuilt Windows/macOS/Linux downloads: see docs/UI.md
 pip install -e ".[app]"
@@ -101,6 +107,7 @@ Overall pass rate 58.3%, zero drift against baseline (threshold 5%). See [BENCHM
 - [Eval DSL](docs/EVAL_DSL.md)
 - [Oracle spec](docs/ORACLE_SPEC.md)
 - [GitHub Action setup](docs/GITHUB_ACTION.md)
+- [Watch mode + accountability guards](docs/WATCH.md)
 - [Dashboard / UI client](docs/UI.md)
 - [Benchmarks](docs/BENCHMARKS.md)
 

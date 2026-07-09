@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
+from agentbench.diff_report import build_diff_report
 from agentbench.gate.evaluator import Evaluator
 from agentbench.gate.manifest import load_task_manifest
 from agentbench.matrix import MatrixConfig, MatrixRunner, detect_score_drift
@@ -170,6 +171,8 @@ class UIHandler(BaseHTTPRequestHandler):
                 self._api_set_root(self._read_json_body())
             elif self.path == "/api/matrix":
                 self._api_matrix(self._read_json_body())
+            elif self.path == "/api/diff":
+                self._api_diff(self._read_json_body())
             else:
                 self._send_error_json("not found", HTTPStatus.NOT_FOUND)
         except (ValueError, OSError, json.JSONDecodeError) as exc:
@@ -371,6 +374,18 @@ class UIHandler(BaseHTTPRequestHandler):
             finally:
                 os.chdir(cwd)
         self._send_json(payload)
+
+    def _api_diff(self, body: dict[str, Any]) -> None:
+        baseline_rel = body.get("baseline_path")
+        candidate_rel = body.get("candidate_path")
+        if not isinstance(baseline_rel, str) or not baseline_rel:
+            raise ValueError("provide 'baseline_path'")
+        if not isinstance(candidate_rel, str) or not candidate_rel:
+            raise ValueError("provide 'candidate_path'")
+        baseline = _resolve_under(self.root, baseline_rel)
+        candidate = _resolve_under(self.root, candidate_rel)
+        report = build_diff_report(baseline, candidate)
+        self._send_json(report.to_dict())
 
     def _api_set_root(self, body: dict[str, Any]) -> None:
         """Switch the project root (desktop client 'open project')."""

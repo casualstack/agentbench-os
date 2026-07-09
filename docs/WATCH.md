@@ -38,6 +38,10 @@ Every rule ships on by default and needs zero configuration.
 | `out_of_project_write` | critical | writes outside the folder it was working in |
 | `destructive_command` | critical | runs `rm -rf`, `git reset --hard`, force-push, etc. |
 | `network_command` | warning | runs curl/wget/HTTP commands (your own localhost dev server doesn't count) |
+| `privilege_escalation_command` | critical | runs sudo/ACL/permission-bypass style commands |
+| `possible_data_exfiltration` | warning | runs commands that can upload/sync local data elsewhere |
+| `potential_secret_exposure` | critical | writes content that looks like hardcoded credentials |
+| `ci_guardrail_touched` | warning | edits CI workflows/action policy-critical files |
 
 Writes to the agent's own config area (`~/.claude/...`, e.g. memory files)
 are expected behavior and never alert.
@@ -52,6 +56,19 @@ agentbench watch --once --fail-on-alert     # exit 1 on critical findings (CI-fr
 agentbench watch --live-only         # ignore history; alert on new activity only
 agentbench watch --interval 5        # seconds between checks (default 2)
 ```
+
+## /diff reports
+
+For trajectory-to-trajectory accountability diffs:
+
+```bash
+agentbench diff \
+  --baseline .agentbench/baseline.json \
+  --candidate .agentbench/last-run.json \
+  --output build/diff-report.md
+```
+
+Use `--fail-on-change` when you want `/diff` to fail automation on change.
 
 ## How it relates to tasks and oracles
 

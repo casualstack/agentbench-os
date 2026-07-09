@@ -7,6 +7,7 @@ import json
 import sys
 from pathlib import Path
 
+from agentbench.diff_report import build_diff_report
 from agentbench.matrix import MatrixRunner, detect_score_drift
 from agentbench.gate.evaluator import Evaluator
 
@@ -172,6 +173,25 @@ def cmd_watch(args: argparse.Namespace) -> int:
     return 1 if critical and args.fail_on_alert else 0
 
 
+def cmd_diff(args: argparse.Namespace) -> int:
+    report = build_diff_report(args.baseline, args.candidate)
+    markdown = report.to_markdown()
+    print(markdown, end="")
+
+    if args.output:
+        output = Path(args.output)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        if output.suffix.lower() == ".json":
+            output.write_text(json.dumps(report.to_dict(), indent=2) + "\n", encoding="utf-8")
+        else:
+            output.write_text(markdown, encoding="utf-8")
+        print(f"\nWrote /diff report to {output}")
+
+    if args.fail_on_change and report.changed:
+        return 1
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="agentbench",
@@ -285,6 +305,34 @@ def build_parser() -> argparse.ArgumentParser:
         help="Exit 1 if any critical alert was raised",
     )
     watch_parser.set_defaults(func=cmd_watch)
+
+    diff_parser = sub.add_parser(
+        "diff",
+        help="Compare two trajectories and emit a git-like /diff report",
+    )
+    diff_parser.add_argument(
+        "--baseline",
+        required=True,
+        type=Path,
+        help="Baseline trajectory JSON (usually default branch)",
+    )
+    diff_parser.add_argument(
+        "--candidate",
+        required=True,
+        type=Path,
+        help="Candidate trajectory JSON (usually PR branch)",
+    )
+    diff_parser.add_argument(
+        "--output",
+        type=Path,
+        help="Optional report path (.md or .json)",
+    )
+    diff_parser.add_argument(
+        "--fail-on-change",
+        action="store_true",
+        help="Exit 1 if the candidate trajectory differs from baseline",
+    )
+    diff_parser.set_defaults(func=cmd_diff)
 
     return parser
 
