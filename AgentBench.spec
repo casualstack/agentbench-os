@@ -1,0 +1,67 @@
+# -*- mode: python ; coding: utf-8 -*-
+import os
+import sys
+
+from PyInstaller.utils.hooks import collect_data_files
+from PyInstaller.utils.hooks import collect_all
+
+# SPECPATH is injected by PyInstaller as the directory containing this file.
+# Building the entry-point path from it (instead of a hardcoded relative
+# path) keeps the spec correct on Windows/macOS/Linux and regardless of the
+# working directory the build is invoked from.
+entry_point = os.path.join(SPECPATH, 'scripts', 'desktop_entry.py')
+
+datas = []
+binaries = []
+hiddenimports = []
+datas += collect_data_files('agentbench')
+tmp_ret = collect_all('webview')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+
+
+a = Analysis(
+    [entry_point],
+    pathex=[],
+    binaries=binaries,
+    datas=datas,
+    hiddenimports=hiddenimports,
+    hookspath=[],
+    hooksconfig={},
+    runtime_hooks=[],
+    excludes=[],
+    noarchive=False,
+    optimize=0,
+)
+pyz = PYZ(a.pure)
+
+exe = EXE(
+    pyz,
+    a.scripts,
+    a.binaries,
+    a.datas,
+    [],
+    name='AgentBench',
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    runtime_tmpdir=None,
+    console=False,
+    disable_windowed_traceback=False,
+    argv_emulation=False,
+    target_arch=None,
+    codesign_identity=None,
+    entitlements_file=None,
+)
+
+# macOS needs an .app bundle (Dock icon, Finder double-click, WebKit runs
+# inside it correctly) — a bare EXE is just a Unix executable there. This is
+# a no-op on Windows/Linux, which use the EXE output directly.
+if sys.platform == 'darwin':
+    app = BUNDLE(
+        exe,
+        name='AgentBench.app',
+        icon=None,
+        bundle_identifier='dev.casualstack.agentbench',
+    )
