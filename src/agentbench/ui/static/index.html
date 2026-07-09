@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AgentBench</title>
+<link rel="icon" type="image/x-icon" href="/static/agentbench-logo.ico">
 <style>
   :root {
     --bg: #0d1117; --panel: #161b22; --border: #30363d;
@@ -19,8 +20,11 @@
     display: flex; align-items: center; gap: 12px;
     padding: 14px 24px; border-bottom: 1px solid var(--border);
   }
-  header h1 { margin: 0; font-size: 18px; }
-  header h1 span { color: var(--accent); }
+  .brand-logo {
+    height: 32px;
+    width: auto;
+    display: block;
+  }
   header .sub { color: var(--muted); font-size: 13px; }
   .rootbar { margin-left: auto; display: flex; gap: 6px; align-items: center; }
   .rootbar input {
@@ -133,7 +137,7 @@
 </head>
 <body>
 <header>
-  <h1>Agent<span>Bench</span></h1>
+  <img class="brand-logo" src="/static/agentbench-logo.png" alt="AgentBench logo">
   <div class="sub">did your AI coding agent play by the rules?</div>
   <div class="rootbar">
     <input type="text" id="root-path" title="Project root" spellcheck="false">

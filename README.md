@@ -40,6 +40,9 @@ agentbench app
 # Same client in a browser tab
 agentbench ui
 
+# Local watch mode for accountability alerts
+agentbench watch --once
+
 # Run tests
 pytest -q
 ```

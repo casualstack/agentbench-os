@@ -53,6 +53,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon=os.path.join(SPECPATH, 'src', 'agentbench', 'ui', 'static', 'agentbench-logo.ico'),
 )
 
 # macOS needs an .app bundle (Dock icon, Finder double-click, WebKit runs
@@ -62,6 +63,6 @@ if sys.platform == 'darwin':
     app = BUNDLE(
         exe,
         name='AgentBench.app',
-        icon=None,
+        icon=os.path.join(SPECPATH, 'src', 'agentbench', 'ui', 'static', 'agentbench-logo.ico'),
         bundle_identifier='dev.casualstack.agentbench',
     )
