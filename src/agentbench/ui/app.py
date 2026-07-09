@@ -42,6 +42,7 @@ def run_app(root: Path | str = ".", *, tasks_dir: str = "tasks") -> int:
     thread.start()
 
     url = f"http://127.0.0.1:{server.server_address[1]}/"
+    icon_path = (Path(__file__).parent / "static" / "agentbench-logo.ico").resolve()
     webview.create_window(
         "AgentBench",
         url,
@@ -50,6 +51,7 @@ def run_app(root: Path | str = ".", *, tasks_dir: str = "tasks") -> int:
         height=820,
         min_size=(760, 520),
         background_color="#0d1117",
+        icon=str(icon_path),
     )
     webview.start()
 

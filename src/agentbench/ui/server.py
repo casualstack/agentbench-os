@@ -7,6 +7,7 @@ relative to the project root and confined to it.
 from __future__ import annotations
 
 import json
+import mimetypes
 import os
 import threading
 import webbrowser
@@ -136,6 +137,8 @@ class UIHandler(BaseHTTPRequestHandler):
         try:
             if parsed.path in ("/", "/index.html"):
                 self._serve_index()
+            elif parsed.path.startswith("/static/"):
+                self._serve_static(parsed.path[len("/static/") :])
             elif parsed.path == "/api/root":
                 self._send_json({"root": str(self.root)})
             elif parsed.path == "/api/tasks":
@@ -184,6 +187,27 @@ class UIHandler(BaseHTTPRequestHandler):
         body = (STATIC_DIR / "index.html").read_bytes()
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _serve_static(self, rel_path: str) -> None:
+        rel = Path(rel_path)
+        if rel.is_absolute() or ".." in rel.parts:
+            self._send_error_json("not found", HTTPStatus.NOT_FOUND)
+            return
+        path = (STATIC_DIR / rel).resolve()
+        if STATIC_DIR not in path.parents and path != STATIC_DIR:
+            self._send_error_json("not found", HTTPStatus.NOT_FOUND)
+            return
+        if not path.is_file():
+            self._send_error_json("not found", HTTPStatus.NOT_FOUND)
+            return
+
+        body = path.read_bytes()
+        content_type, _ = mimetypes.guess_type(str(path))
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", content_type or "application/octet-stream")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)

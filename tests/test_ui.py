@@ -47,6 +47,14 @@ def test_index_served(ui_base_url):
     assert "AgentBench" in body
 
 
+def test_static_logo_served(ui_base_url):
+    with urllib.request.urlopen(ui_base_url + "/static/agentbench-logo.png") as response:
+        payload = response.read()
+        content_type = response.headers.get("Content-Type", "")
+    assert payload
+    assert content_type.startswith("image/")
+
+
 def test_api_tasks_lists_task_files(ui_base_url):
     data = _get(ui_base_url + "/api/tasks?dir=tasks")
     ids = [t["id"] for t in data["tasks"]]

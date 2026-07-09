@@ -69,10 +69,24 @@ All oracles must pass for `RunResult.passed == True`.
 
 - `agentbench run --task T --trajectory J` — single eval, exit 0/1
 - `agentbench gate --tasks DIR --trajectory J` — batch gate
+- `agentbench watch` — local session accountability monitoring
+- `agentbench diff --baseline A --candidate B` — trajectory-to-trajectory diff report
 
 ### GitHub Action (`action/`)
 
 Composite action: install package, run `agentbench gate`. Workflow stub at `.github/workflows/agentbench-gate.yml`.
+
+### Client (`agentbench.ui`)
+
+Local dashboard (desktop app and browser mode) over loopback-only JSON API:
+
+- Live watch feed (`/api/watch`) for ongoing session guardrails
+- Gate runner (`/api/gate`) for trajectory + task evaluation
+- Trajectory explorer (`/api/trajectories`, `/api/trajectory`)
+- Trajectory diff view (`/api/diff`)
+- Matrix runner (`/api/matrix-configs`, `/api/matrix`)
+- Run history (`/api/history`)
+- JSONL recorder (`/api/record`)
 
 ## Design principles
 

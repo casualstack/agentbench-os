@@ -1,7 +1,7 @@
 # AgentBench Client (`agentbench app` / `agentbench ui`)
 
-An all-in-one client bundled with the package: gate runner, task browser, and
-trajectory recorder.
+An all-in-one client bundled with the package: live session watch, gate runner,
+trajectory diffing, task browser, and trajectory recorder.
 
 ## Desktop app
 
@@ -60,6 +60,13 @@ agentbench ui --root /path/to/target-repo --tasks .agentbench/tasks
 
 ## Tabs
 
+### Live watch
+Auto-detects local AI coding sessions (Claude Code first-class, Cursor detected)
+and continuously surfaces accountability alerts in plain English. Includes
+default guards like deleted assertions, skipped tests, out-of-project writes,
+destructive commands, privilege escalation patterns, potential secret exposure,
+possible data exfiltration commands, and CI/policy-file edits.
+
 ### Gate runner
 Pick a discovered trajectory (from `tests/fixtures/` or `.agentbench/`) or paste a
 trajectory JSON, optionally limit tasks with a manifest, and run the gate. Results
@@ -73,6 +80,11 @@ drill into the agent prompt, oracle definitions, and initial workspace files.
 ### Trajectories
 Inspect any recorded run step by step — tool, args, with file edits and shell
 commands badged.
+
+### Diff
+Compare two recorded trajectories and get a git-like accountability diff:
+step count delta, tool usage added/removed, files newly touched/no longer
+touched, and command deltas.
 
 ### Matrix
 Run any discovered benchmark matrix config (`benchmarks/*.yaml`, `configs/*.json`)
@@ -102,6 +114,8 @@ relative to `--root` and confined to it):
 | `/api/task?dir=&file=` | GET | Full task definition |
 | `/api/trajectories` | GET | Discover trajectory JSONs |
 | `/api/trajectory?path=` | GET | Full trajectory (validated) |
+| `/api/watch` | GET | Poll session watcher and current alerts |
+| `/api/diff` | POST | Compare two trajectories: `{baseline_path, candidate_path}` |
 | `/api/gate` | POST | Run the gate: `{tasks_dir, trajectory_path \| trajectory, manifest?}` |
 | `/api/matrix-configs` | GET | Discover benchmark matrix configs |
 | `/api/matrix` | POST | Run a matrix: `{config}` |

@@ -7,6 +7,7 @@ repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo"
 
 python -m PyInstaller --noconfirm --onefile --windowed --name AgentBench \
+  --icon src/agentbench/ui/static/agentbench-logo.ico \
   --collect-data agentbench --collect-all webview scripts/desktop_entry.py
 
 echo
