@@ -45,7 +45,7 @@ jobs:
             gir1.2-gtk-3.0
 
       - name: Install dependencies
-        run: pip install -e ".[app]" pyinstaller
+        run: pip install -e ".[app,dev]" pyinstaller
 
       - name: Run tests
         run: python -m pytest -q
