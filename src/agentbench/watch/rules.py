@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from pathlib import PurePath
+from pathlib import PurePath, PurePosixPath, PureWindowsPath
 from typing import Any
 
 WARNING = "warning"
@@ -143,7 +143,13 @@ def _check_write(
     alerts: list[Alert] = []
     display = _short(path, cwd)
 
-    is_absolute = PurePath(path.replace("\\", "/")).is_absolute()
+    # Sessions may come from any OS, so recognize both path styles regardless
+    # of the OS we're running on (PurePath alone only knows the local style).
+    normalized = path.replace("\\", "/")
+    is_absolute = (
+        PureWindowsPath(normalized).is_absolute()
+        or PurePosixPath(normalized).is_absolute()
+    )
     is_agent_home = "/.claude/" in path.replace("\\", "/").casefold()
     if cwd and is_absolute and not is_within(path, cwd) and not is_agent_home:
         alerts.append(

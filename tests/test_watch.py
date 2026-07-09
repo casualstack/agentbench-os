@@ -200,6 +200,17 @@ class TestRules:
         alert = _one_alert(steps, "out_of_project_write", cwd=CWD)
         assert alert.severity == "critical"
 
+    def test_out_of_project_write_posix_paths(self):
+        steps = [
+            {
+                "type": "tool_call",
+                "tool": "write_file",
+                "args": {"file_path": "/etc/cron.d/job", "content": "x"},
+            }
+        ]
+        alert = _one_alert(steps, "out_of_project_write", cwd="/home/dev/repo")
+        assert alert.severity == "critical"
+
     def test_write_inside_project_is_quiet(self):
         steps = [
             {
