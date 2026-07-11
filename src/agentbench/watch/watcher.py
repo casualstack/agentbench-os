@@ -1,8 +1,15 @@
 """Tail agent session logs and emit alerts as new steps appear.
 
-Polling, not filesystem events: session files grow by appended JSONL lines,
-a poll every couple of seconds is plenty, and polling needs no dependencies
-and behaves identically on Windows, macOS, and Linux.
+Two strategies, chosen per adapter via ``supports_tail``:
+
+- Tailable (append-only JSONL, e.g. Claude Code): byte-tail the file —
+  track a read offset, parse only newly-appended complete lines. Polling,
+  not filesystem events: a poll every couple of seconds is plenty, needs no
+  dependencies, and behaves identically on Windows, macOS, and Linux.
+- Non-tailable (e.g. Cursor's SQLite store): there's no append-only log to
+  byte-tail, so we re-parse the whole session on each poll (only when its
+  mtime has moved) and diff the resulting step count against what we saw
+  last time.
 """
 
 from __future__ import annotations
@@ -11,24 +18,28 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from agentbench.watch.claude_code import (
-    iter_records,
-    session_metadata,
-    steps_from_records,
-)
+from agentbench.watch.adapters import ADAPTERS
+from agentbench.watch.adapters.base import SourceAdapter
 from agentbench.watch.rules import Alert, check_steps
 from agentbench.watch.sources import DiscoveryReport, discover_sessions
+
+_ADAPTERS_BY_NAME: dict[str, SourceAdapter] = {a.client_name: a for a in ADAPTERS}
+
+
+def _adapter_for(agent: str) -> SourceAdapter | None:
+    return _ADAPTERS_BY_NAME.get(agent)
 
 
 @dataclass
 class _SessionState:
-    """Per-file tailing state."""
+    """Per-session watching state."""
 
     agent: str
     path: Path
     session_id: str
-    offset: int = 0
-    remainder: str = ""  # partial last line from the previous read
+    offset: int = 0  # tailable sources: read offset in bytes
+    remainder: str = ""  # tailable sources: partial last line from previous read
+    reparse_mtime: float | None = None  # non-tailable sources: mtime last parsed
     step_count: int = 0
     cwd: str | None = None
     model: str | None = None
@@ -85,18 +96,22 @@ class SessionWatcher:
 
     def sessions(self) -> list[dict[str, Any]]:
         """Snapshot of everything watched so far (for UI/API use)."""
-        return [
-            {
-                "agent": s.agent,
-                "session_id": s.session_id,
-                "path": str(s.path),
-                "cwd": s.cwd,
-                "model": s.model,
-                "steps": s.step_count,
-                "alerts": [a.to_dict() for a in s.alerts],
-            }
-            for s in self._sessions.values()
-        ]
+        result = []
+        for s in self._sessions.values():
+            adapter = _adapter_for(s.agent)
+            result.append(
+                {
+                    "agent": s.agent,
+                    "client": adapter.display_name if adapter else s.agent,
+                    "session_id": s.session_id,
+                    "path": str(s.path),
+                    "cwd": s.cwd,
+                    "model": s.model,
+                    "steps": s.step_count,
+                    "alerts": [a.to_dict() for a in s.alerts],
+                }
+            )
+        return result
 
     def detected_agents(self) -> list[str]:
         return discover_sessions(self._home).detected_agents
@@ -105,32 +120,69 @@ class SessionWatcher:
 
     def _register_new(self, report: DiscoveryReport) -> None:
         for source in report.sessions:
-            if source.agent != "claude-code" or source.path in self._sessions:
+            if source.path in self._sessions:
+                continue
+            adapter = _adapter_for(source.agent)
+            if adapter is None:
                 continue
             state = _SessionState(
                 agent=source.agent, path=source.path, session_id=source.session_id
             )
             if self._skip_existing and not self._primed:
-                # Only watch activity from now on; jump past current content.
-                try:
-                    state.offset = source.path.stat().st_size
-                except OSError:
-                    pass
-                self._fill_metadata(state)
+                self._prime_skip_existing(state, adapter)
             self._sessions[source.path] = state
 
-    def _fill_metadata(self, state: _SessionState) -> None:
+    def _prime_skip_existing(self, state: _SessionState, adapter: SourceAdapter) -> None:
+        """Jump a freshly-seen session past its current content."""
+        if adapter.supports_tail:
+            try:
+                state.offset = state.path.stat().st_size
+            except OSError:
+                pass
+            self._fill_metadata(state, adapter)
+        else:
+            # No offset to jump to — re-parse once and treat every step
+            # already there as history rather than new activity.
+            doc = self._safe_parse(adapter, state.path)
+            if doc is None:
+                return
+            state.step_count = len(doc.get("steps") or [])
+            self._apply_metadata(state, doc.get("metadata") or {})
+            try:
+                state.reparse_mtime = state.path.stat().st_mtime
+            except OSError:
+                pass
+
+    def _fill_metadata(self, state: _SessionState, adapter: SourceAdapter) -> None:
         try:
             text = state.path.read_text(encoding="utf-8", errors="replace")
         except OSError:
             return
-        self._apply_metadata(state, session_metadata(iter_records(text)))
+        try:
+            metadata = adapter.metadata_from_text(text)
+        except Exception:
+            return
+        self._apply_metadata(state, metadata)
 
     def _apply_metadata(self, state: _SessionState, metadata: dict[str, Any]) -> None:
         state.cwd = state.cwd or metadata.get("cwd")
         state.model = state.model or metadata.get("model")
 
+    def _safe_parse(self, adapter: SourceAdapter, path: Path) -> dict[str, Any] | None:
+        try:
+            return adapter.parse_session(path)
+        except Exception:
+            return None
+
     def _drain(self, state: _SessionState) -> WatchEvent | None:
+        adapter = _adapter_for(state.agent)
+        if adapter is None:
+            return None
+        if adapter.supports_tail:
+            return self._drain_tail(state, adapter)
+        return self._drain_reparse(state, adapter)
+
+    def _drain_tail(self, state: _SessionState, adapter: SourceAdapter) -> WatchEvent | None:
         """Read appended bytes, parse complete lines, evaluate new steps."""
         try:
             size = state.path.stat().st_size
@@ -159,14 +211,52 @@ class SessionWatcher:
             if not text and state.remainder:
                 return None
 
-        records = list(iter_records(text))
         if state.cwd is None or state.model is None:
-            self._apply_metadata(state, session_metadata(iter(records)))
+            try:
+                self._apply_metadata(state, adapter.metadata_from_text(text))
+            except Exception:
+                pass
 
-        steps = steps_from_records(iter(records))
+        try:
+            steps = adapter.steps_from_text(text)
+        except Exception:
+            steps = []
         if not steps:
             return None
 
+        return self._evaluate_new_steps(state, steps)
+
+    def _drain_reparse(self, state: _SessionState, adapter: SourceAdapter) -> WatchEvent | None:
+        """Re-parse the whole session and diff against the last step count.
+
+        Used for sources with no append-only log to byte-tail (e.g. Cursor's
+        SQLite store). This loses fine-grained ordering if a source rewrites
+        earlier steps in place rather than only appending — acceptable for
+        now since these sources are best-effort to begin with.
+        """
+        try:
+            mtime = state.path.stat().st_mtime
+        except OSError:
+            return None
+        if state.reparse_mtime is not None and mtime <= state.reparse_mtime:
+            return None
+        state.reparse_mtime = mtime
+
+        doc = self._safe_parse(adapter, state.path)
+        if doc is None:
+            return None
+        self._apply_metadata(state, doc.get("metadata") or {})
+
+        all_steps = doc.get("steps") or []
+        new_steps = all_steps[state.step_count :]
+        if not new_steps:
+            return None
+
+        return self._evaluate_new_steps(state, new_steps)
+
+    def _evaluate_new_steps(
+        self, state: _SessionState, steps: list[dict[str, Any]]
+    ) -> WatchEvent | None:
         if self._project is not None and not _cwd_matches(state.cwd, self._project):
             state.step_count += len(steps)
             return None
