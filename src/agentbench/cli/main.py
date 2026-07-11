@@ -125,6 +125,9 @@ def _print_watch_events(events: list) -> int:
 def cmd_watch(args: argparse.Namespace) -> int:
     import time
 
+    from agentbench.watch.adapters import ADAPTERS
+    from agentbench.watch.digest import render_digest
+    from agentbench.watch.notify import backend_available, notify, summarize_alerts
     from agentbench.watch.watcher import SessionWatcher
 
     # Alert copy uses em dashes; legacy Windows consoles default to cp1252.
@@ -140,17 +143,39 @@ def cmd_watch(args: argparse.Namespace) -> int:
     if not detected:
         print(
             "No AI coding agents found on this machine yet.\n"
-            "AgentBench looks for Claude Code sessions under ~/.claude/projects."
+            "AgentBench looks for Claude Code (~/.claude/projects) and Cursor "
+            "sessions, and detects Codex and Antigravity."
         )
         return 1
 
+    adapters = {a.client_name: a for a in ADAPTERS}
     names = []
     for agent in detected:
-        if agent == "claude-code":
-            names.append("Claude Code")
-        elif agent == "cursor":
-            names.append("Cursor (detected — support coming soon)")
+        adapter = adapters.get(agent)
+        if adapter is None:
+            names.append(agent)
+        elif adapter.detect_only:
+            names.append(f"{adapter.display_name} (detected — parsing coming soon)")
+        else:
+            names.append(adapter.display_name)
     print(f"Found: {', '.join(names)}")
+
+    # Default: notify during the continuous loop when a backend is available;
+    # --once is the CI/scripting path and stays quiet unless asked otherwise.
+    notifications_enabled = args.notify
+    if notifications_enabled is None:
+        notifications_enabled = not args.once and backend_available()
+
+    def _maybe_notify(poll_events: list) -> None:
+        if not notifications_enabled:
+            return
+        summary = summarize_alerts(poll_events)
+        if summary is not None:
+            notify(*summary)
+
+    def _maybe_write_digest() -> None:
+        if args.digest:
+            args.digest.write_text(render_digest(watcher.sessions()), encoding="utf-8")
 
     events = watcher.poll()  # first poll covers existing session history
     total_sessions = len(watcher.sessions())
@@ -159,17 +184,22 @@ def cmd_watch(args: argparse.Namespace) -> int:
     critical = _print_watch_events(events)
     if not any(e.alerts for e in events):
         print("No problems found in recorded sessions.")
+    _maybe_notify(events)
 
     if args.once:
+        _maybe_write_digest()
         return 1 if critical and args.fail_on_alert else 0
 
     print("\nWatching for new agent activity... (Ctrl+C to stop)")
     try:
         while True:
             time.sleep(args.interval)
-            critical += _print_watch_events(watcher.poll())
+            poll_events = watcher.poll()
+            critical += _print_watch_events(poll_events)
+            _maybe_notify(poll_events)
     except KeyboardInterrupt:
         print("\nStopped watching.")
+    _maybe_write_digest()
     return 1 if critical and args.fail_on_alert else 0
 
 
@@ -303,6 +333,26 @@ def build_parser() -> argparse.ArgumentParser:
         "--fail-on-alert",
         action="store_true",
         help="Exit 1 if any critical alert was raised",
+    )
+    notify_group = watch_parser.add_mutually_exclusive_group()
+    notify_group.add_argument(
+        "--notify",
+        dest="notify",
+        action="store_true",
+        default=None,
+        help="Send a desktop notification when a poll finds new alerts "
+        "(default: on while watching live, if this machine supports it)",
+    )
+    notify_group.add_argument(
+        "--no-notify",
+        dest="notify",
+        action="store_false",
+        help="Never send desktop notifications",
+    )
+    watch_parser.add_argument(
+        "--digest",
+        type=Path,
+        help="Write a plain-English markdown report of all watched sessions to this path",
     )
     watch_parser.set_defaults(func=cmd_watch)
 
