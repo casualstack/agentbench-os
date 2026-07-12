@@ -25,10 +25,13 @@ from agentbench.matrix import MatrixConfig, MatrixRunner, detect_score_drift
 from agentbench.models.task import EvalTask, RunResult
 from agentbench.recorder import build_trajectory, steps_from_jsonl
 from agentbench.runner.trajectory import Trajectory
+from agentbench.watch.adapters import ADAPTERS
+from agentbench.watch.digest import render_digest
 from agentbench.watch.watcher import SessionWatcher
 
 STATIC_DIR = Path(__file__).parent / "static"
 HISTORY_LIMIT = 50
+_ADAPTERS_BY_NAME = {a.client_name: a for a in ADAPTERS}
 
 # Matrix configs resolve trajectory/task paths relative to the process cwd,
 # so matrix runs chdir to the project root; serialize them.
@@ -155,6 +158,10 @@ class UIHandler(BaseHTTPRequestHandler):
                 self._api_history()
             elif parsed.path == "/api/watch":
                 self._api_watch()
+            elif parsed.path == "/api/watch/digest":
+                self._api_watch_digest()
+            elif parsed.path == "/api/session":
+                self._api_session(query)
             else:
                 self._send_error_json("not found", HTTPStatus.NOT_FOUND)
         except (ValueError, OSError, json.JSONDecodeError) as exc:
@@ -255,13 +262,20 @@ class UIHandler(BaseHTTPRequestHandler):
         if "trajectory" in body:
             trajectory = Trajectory.from_dict(body["trajectory"])
             trajectory_label = "(pasted trajectory)"
-        elif "trajectory_path" in body:
+        elif body.get("trajectory_path"):
             trajectory = Trajectory.from_file(
                 _resolve_under(self.root, body["trajectory_path"])
             )
             trajectory_label = body["trajectory_path"]
+        elif body.get("session_path"):
+            session, doc = self._parse_watched_session(body["session_path"])
+            trajectory = Trajectory.from_dict(doc)
+            trajectory_label = f"(live) {session['agent']} {session['session_id'][:8]}"
         else:
-            raise ValueError("provide 'trajectory' (object) or 'trajectory_path'")
+            raise ValueError(
+                "provide a session to check — pick one from the dropdown, paste a "
+                "trajectory, or import one first"
+            )
 
         task_files = None
         if body.get("manifest"):
@@ -320,6 +334,14 @@ class UIHandler(BaseHTTPRequestHandler):
 
     # -- watch ----------------------------------------------------------------
 
+    def _ensure_watcher(self) -> SessionWatcher:
+        """Create the shared watcher if needed and poll it. Call under _WATCH_LOCK."""
+        cls = type(self)
+        if cls._watcher is None:
+            cls._watcher = SessionWatcher(home=cls.watch_home, skip_existing=False)
+        cls._watcher.poll()
+        return cls._watcher
+
     def _api_watch(self) -> None:
         """Poll the shared session watcher and return its current snapshot.
 
@@ -327,16 +349,66 @@ class UIHandler(BaseHTTPRequestHandler):
         dashboard shows agent activity regardless of which project is open;
         the first poll includes session history, not just new activity.
         """
-        cls = type(self)
         with _WATCH_LOCK:
-            if cls._watcher is None:
-                cls._watcher = SessionWatcher(home=cls.watch_home, skip_existing=False)
-            cls._watcher.poll()
+            watcher = self._ensure_watcher()
+            detected = watcher.detected_agents()
             payload = {
-                "detected_agents": cls._watcher.detected_agents(),
-                "sessions": cls._watcher.sessions(),
+                "detected_agents": detected,
+                "sessions": watcher.sessions(),
+                "clients": [
+                    {
+                        "name": a.client_name,
+                        "display": a.display_name,
+                        "parsed": not a.detect_only,
+                    }
+                    for a in ADAPTERS
+                    if a.client_name in detected
+                ],
             }
         self._send_json(payload)
+
+    def _api_watch_digest(self) -> None:
+        """Render the current watcher snapshot as a downloadable markdown report."""
+        with _WATCH_LOCK:
+            watcher = self._ensure_watcher()
+            markdown = render_digest(watcher.sessions())
+        body = markdown.encode("utf-8")
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "text/markdown; charset=utf-8")
+        self.send_header(
+            "Content-Disposition", 'attachment; filename="agentbench-report.md"'
+        )
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _parse_watched_session(self, raw_path: str) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Resolve a session path against the watcher's allowlist and parse it.
+
+        Session files live outside the project root (e.g. ``~/.claude/projects``),
+        so ``_resolve_under`` can't confine them — instead we only ever parse a
+        path the watcher itself just discovered. This is the security boundary
+        for both ``/api/session`` and the ``session_path`` gate source: never
+        hand an arbitrary user-supplied path to an adapter's parser.
+        """
+        with _WATCH_LOCK:
+            watcher = self._ensure_watcher()
+            allowed = {s["path"]: s for s in watcher.sessions()}
+            session = allowed.get(raw_path)
+            if session is None:
+                raise ValueError("not a watched session path")
+            adapter = _ADAPTERS_BY_NAME.get(session["agent"])
+            if adapter is None:
+                raise ValueError(f"no adapter registered for agent {session['agent']!r}")
+            doc = adapter.parse_session(Path(raw_path))
+        return session, doc
+
+    def _api_session(self, query: dict[str, list[str]]) -> None:
+        raw_path = query.get("path", [""])[0]
+        if not raw_path:
+            raise ValueError("provide 'path'")
+        _session, doc = self._parse_watched_session(raw_path)
+        self._send_json({"path": raw_path, "trajectory": doc})
 
     # -- detail views ---------------------------------------------------------
 

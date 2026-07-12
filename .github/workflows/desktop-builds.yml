@@ -59,17 +59,18 @@ jobs:
           cd dist
           case "${{ runner.os }}" in
             Windows)
-              7z a "../${{ matrix.artifact }}.zip" AgentBench.exe
+              # One-dir build: zip the whole AgentBench/ folder, not a single exe.
+              7z a "../${{ matrix.artifact }}.zip" AgentBench
               ;;
             macOS)
               if [ -d AgentBench.app ]; then
                 zip -r "../${{ matrix.artifact }}.zip" AgentBench.app
               else
-                zip "../${{ matrix.artifact }}.zip" AgentBench
+                zip -r "../${{ matrix.artifact }}.zip" AgentBench
               fi
               ;;
             Linux)
-              zip "../${{ matrix.artifact }}.zip" AgentBench
+              zip -r "../${{ matrix.artifact }}.zip" AgentBench
               ;;
           esac
 
@@ -87,6 +88,8 @@ jobs:
     permissions:
       contents: write  # create the release and upload assets
     steps:
+      - uses: actions/checkout@v4  # need docs/RELEASE_NOTES_HEADER.md for the release body
+
       - uses: actions/download-artifact@v4
         with:
           path: dist-artifacts
@@ -101,3 +104,4 @@ jobs:
         with:
           files: release-assets/*.zip
           fail_on_unmatched_files: true
+          body_path: docs/RELEASE_NOTES_HEADER.md

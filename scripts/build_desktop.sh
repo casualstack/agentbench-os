@@ -6,13 +6,13 @@ set -euo pipefail
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo"
 
-python -m PyInstaller --noconfirm --onefile --windowed --name AgentBench \
-  --icon src/agentbench/ui/static/agentbench-logo.ico \
-  --collect-data agentbench --collect-all webview scripts/desktop_entry.py
+# AgentBench.spec is the single source of truth for PyInstaller options
+# (icon, version resource, one-dir layout, upx) — CI builds the same way.
+python -m PyInstaller --noconfirm AgentBench.spec
 
 echo
 if [ -d "dist/AgentBench.app" ]; then
   echo "Built: $repo/dist/AgentBench.app"
 else
-  echo "Built: $repo/dist/AgentBench"
+  echo "Built: $repo/dist/AgentBench/AgentBench"
 fi

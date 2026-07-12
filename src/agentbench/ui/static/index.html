@@ -165,6 +165,8 @@
       assertions, files touched outside your project, destructive commands, and more.
     </p>
     <div id="watch-status" class="muted">Looking for agent sessions…</div>
+    <div id="watch-stats"></div>
+    <button class="ghost" id="watch-download">Download report</button>
   </div>
   <div id="watch-feed"></div>
 </section>
@@ -266,8 +268,9 @@
 <section id="tab-record">
   <div class="panel">
     <p class="muted" style="margin-top:0">
-      Got a tool log from Claude Code or Cursor? Paste it here (one JSON object per line) and it
-      becomes a session you can run checks against. Different tools name things differently
+      Sessions from Claude Code and Cursor are found automatically — use this only for logs from
+      other tools. Paste a tool log here (one JSON object per line) and it becomes a session you
+      can run checks against. Different tools name things differently
       (<code>tool</code>/<code>name</code>, <code>args</code>/<code>input</code>) — that's handled for you.
     </p>
     <label>Paste the log</label>
@@ -354,9 +357,33 @@ function renderSessionGroup(s) {
   return html;
 }
 
+function renderWatchStats(sessions) {
+  if (!sessions.length) {
+    $("watch-stats").innerHTML = "";
+    return;
+  }
+  const allAlerts = sessions.flatMap((s) => s.alerts || []);
+  const critical = allAlerts.filter((a) => a.severity === "critical").length;
+  const warning = allAlerts.filter((a) => a.severity === "warning").length;
+
+  const byClient = {};
+  for (const s of sessions) byClient[s.client] = (byClient[s.client] || 0) + 1;
+  const clientChips = Object.entries(byClient)
+    .map(([name, count]) => `<span class="chip">${escapeHtml(name)}: ${count}</span>`)
+    .join("");
+
+  $("watch-stats").innerHTML = `<div style="margin-top:10px;display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+    <span><b>${sessions.length}</b> session${sessions.length === 1 ? "" : "s"}</span>
+    <span class="${critical ? "rate bad" : "muted"}"><b>${critical}</b> critical</span>
+    <span class="${warning ? "rate mid" : "muted"}"><b>${warning}</b> warning${warning === 1 ? "" : "s"}</span>
+    ${clientChips}
+  </div>`;
+}
+
 function renderWatch(data) {
   const sessions = data.sessions || [];
   const agents = data.detected_agents || [];
+  const clients = data.clients || [];
 
   if (!agents.length) {
     $("watch-status").innerHTML =
@@ -364,17 +391,23 @@ function renderWatch(data) {
       "<span class=\"mono\">~/.claude/projects</span> — start a session with Claude Code and " +
       "it'll show up here automatically, no setup needed.";
     $("watch-feed").innerHTML = "";
+    renderWatchStats([]);
     return;
   }
 
-  let status = `Watching Claude Code — ${sessions.length} session${sessions.length === 1 ? "" : "s"} checked`;
-  if (agents.includes("cursor")) {
-    status += ` <span class="muted">· Cursor detected — support coming soon</span>`;
+  const parsedNames = clients.filter((c) => c.parsed).map((c) => c.display);
+  const detectOnlyNames = clients.filter((c) => !c.parsed).map((c) => c.display);
+  let status = parsedNames.length
+    ? `Watching ${parsedNames.join(", ")} — ${sessions.length} session${sessions.length === 1 ? "" : "s"} checked`
+    : `${sessions.length} session${sessions.length === 1 ? "" : "s"} checked`;
+  if (detectOnlyNames.length) {
+    status += ` <span class="muted">· ${detectOnlyNames.join(", ")} detected (parsing coming soon)</span>`;
   }
   $("watch-status").innerHTML = status;
+  renderWatchStats(sessions);
 
   if (!sessions.length) {
-    $("watch-feed").innerHTML = "<p class='muted'>No Claude Code sessions found yet — start one and it'll show up here.</p>";
+    $("watch-feed").innerHTML = "<p class='muted'>No sessions found yet — start one and it'll show up here.</p>";
     return;
   }
 
@@ -396,6 +429,10 @@ async function loadWatch() {
     $("watch-status").innerHTML = `<span class="err">${escapeHtml(e.message)}</span>`;
   }
 }
+
+$("watch-download").addEventListener("click", () => {
+  window.location.href = "/api/watch/digest";
+});
 
 function rateClass(rate) {
   return rate >= 0.8 ? "good" : rate >= 0.5 ? "mid" : "bad";
@@ -458,18 +495,44 @@ function renderReport(report, meta) {
 // ============ gate runner ============
 async function loadTrajectories() {
   try {
-    const data = await api("/api/trajectories");
+    const [data, watch] = await Promise.all([
+      api("/api/trajectories"),
+      api("/api/watch").catch(() => ({ sessions: [] })),
+    ]);
     const sel = $("gate-trajectory");
     sel.innerHTML = "";
-    for (const t of data.trajectories) {
-      const opt = document.createElement("option");
-      opt.value = t.path;
-      const meta = t.metadata.agent ? ` · ${t.metadata.agent}` : "";
-      opt.textContent = `${t.path} (${t.steps} steps${meta})`;
-      sel.appendChild(opt);
+
+    const liveSessions = watch.sessions || [];
+    if (liveSessions.length) {
+      const group = document.createElement("optgroup");
+      group.label = "Detected on this machine (automatic)";
+      for (const s of liveSessions) {
+        const opt = document.createElement("option");
+        opt.value = `live:${s.path}`;
+        opt.textContent = `${s.client} · ${shortId(s.session_id)} · ${s.cwd || "unknown folder"} (${s.steps} steps)`;
+        group.appendChild(opt);
+      }
+      sel.appendChild(group);
     }
-    if (!data.trajectories.length) {
-      sel.innerHTML = "<option value=''>(no sessions found — grab one via the Import tab)</option>";
+
+    if (data.trajectories.length) {
+      const group = document.createElement("optgroup");
+      group.label = "Recorded in this project";
+      for (const t of data.trajectories) {
+        const opt = document.createElement("option");
+        opt.value = t.path;
+        const meta = t.metadata.agent ? ` · ${t.metadata.agent}` : "";
+        opt.textContent = `${t.path} (${t.steps} steps${meta})`;
+        group.appendChild(opt);
+      }
+      sel.appendChild(group);
+    }
+
+    if (!liveSessions.length && !data.trajectories.length) {
+      sel.innerHTML = "<option value=''>(no sessions found — start an AI coding session, or import one via the Import tab)</option>";
+    } else if (liveSessions.length) {
+      // Zero-click default: newest live session (the watcher returns newest first).
+      sel.value = `live:${liveSessions[0].path}`;
     }
   } catch (e) {
     $("gate-err").textContent = e.message;
@@ -484,8 +547,16 @@ $("gate-run").addEventListener("click", async () => {
   try {
     const body = { tasks_dir: $("gate-tasks").value.trim() || "tasks" };
     const pasted = $("gate-paste").value.trim();
-    if (pasted) body.trajectory = JSON.parse(pasted);
-    else body.trajectory_path = $("gate-trajectory").value;
+    const selected = $("gate-trajectory").value;
+    if (pasted) {
+      body.trajectory = JSON.parse(pasted);
+    } else if (selected.startsWith("live:")) {
+      body.session_path = selected.slice("live:".length);
+    } else if (selected) {
+      body.trajectory_path = selected;
+    } else {
+      throw new Error("No session selected — pick one from the dropdown, paste a trajectory, or import one first.");
+    }
     const manifest = $("gate-manifest").value.trim();
     if (manifest) body.manifest = manifest;
     $("gate-results").innerHTML = renderReport(await postJson("/api/gate", body));
@@ -554,22 +625,53 @@ async function showTaskDetail(dir, file) {
 
 // ============ trajectories ============
 async function loadTrajList() {
+  $("traj-err").textContent = "";
   try {
-    const data = await api("/api/trajectories");
-    let html = `<div class="panel"><table>
-      <tr><th>Session file</th><th>Steps</th><th>Agent</th><th>Model</th></tr>`;
-    for (const t of data.trajectories) {
-      html += `<tr class="clickable" data-path="${escapeHtml(t.path)}">
-        <td class="mono">${escapeHtml(t.path)}</td>
-        <td>${t.steps}</td>
-        <td>${escapeHtml(t.metadata.agent || "—")}</td>
-        <td>${escapeHtml(t.metadata.model || "—")}</td>
-      </tr>`;
+    const [watch, data] = await Promise.all([
+      api("/api/watch").catch(() => ({ sessions: [] })),
+      api("/api/trajectories"),
+    ]);
+    const liveSessions = watch.sessions || [];
+
+    let html = `<div class="panel"><label style="margin-top:0">Detected automatically</label>`;
+    if (liveSessions.length) {
+      html += `<table><tr><th>Session</th><th>Steps</th><th>Client</th><th>Folder</th></tr>`;
+      for (const s of liveSessions) {
+        html += `<tr class="clickable" data-live="1" data-path="${escapeHtml(s.path)}">
+          <td class="mono">${escapeHtml(shortId(s.session_id))}</td>
+          <td>${s.steps}</td>
+          <td>${escapeHtml(s.client)}</td>
+          <td class="mono">${escapeHtml(s.cwd || "unknown folder")}</td>
+        </tr>`;
+      }
+      html += "</table>";
+    } else {
+      html += "<p class='muted'>No AI coding agent sessions found yet on this machine.</p>";
     }
-    html += "</table></div>";
+    html += "</div>";
+
+    html += `<div class="panel"><label style="margin-top:0">Recorded in this project</label>`;
+    if (data.trajectories.length) {
+      html += `<table><tr><th>Session file</th><th>Steps</th><th>Agent</th><th>Model</th></tr>`;
+      for (const t of data.trajectories) {
+        html += `<tr class="clickable" data-path="${escapeHtml(t.path)}">
+          <td class="mono">${escapeHtml(t.path)}</td>
+          <td>${t.steps}</td>
+          <td>${escapeHtml(t.metadata.agent || "—")}</td>
+          <td>${escapeHtml(t.metadata.model || "—")}</td>
+        </tr>`;
+      }
+      html += "</table>";
+    } else {
+      html += "<p class='muted'>None recorded yet — use the Import tab.</p>";
+    }
+    html += "</div>";
+
     $("traj-list").innerHTML = html;
     document.querySelectorAll("#traj-list tr.clickable").forEach((row) => {
-      row.addEventListener("click", () => showTrajDetail(row.dataset.path));
+      row.addEventListener("click", () =>
+        row.dataset.live ? showLiveSessionDetail(row.dataset.path) : showTrajDetail(row.dataset.path)
+      );
     });
   } catch (e) {
     $("traj-err").textContent = e.message;
@@ -579,28 +681,41 @@ async function loadTrajList() {
 const EDIT_TOOLS = ["write_file", "edit_file", "str_replace", "Write", "StrReplace"];
 const CMD_TOOLS = ["run_command", "shell", "bash", "Bash", "execute"];
 
+function renderTrajectoryDetail(path, t) {
+  let html = `<div class="panel"><h3 style="margin-top:0" class="mono">${escapeHtml(path)}</h3>`;
+  if (t.metadata && Object.keys(t.metadata).length) {
+    html += `<pre class="out">${escapeHtml(JSON.stringify(t.metadata, null, 2))}</pre>`;
+  }
+  html += `<table><tr><th>#</th><th>Tool</th><th></th><th>Details</th></tr>`;
+  (t.steps || []).forEach((s, i) => {
+    let badge = "";
+    if (EDIT_TOOLS.includes(s.tool) || s.type === "file_edit") badge = `<span class="badge edit">changed a file</span>`;
+    else if (CMD_TOOLS.includes(s.tool) || s.type === "command") badge = `<span class="badge cmd">ran a command</span>`;
+    html += `<tr>
+      <td class="muted">${i}</td>
+      <td class="mono">${escapeHtml(s.tool || s.type || "?")}</td>
+      <td>${badge}</td>
+      <td><div class="step-args">${escapeHtml(JSON.stringify(s.args || {}))}</div></td>
+    </tr>`;
+  });
+  html += "</table></div>";
+  return html;
+}
+
 async function showTrajDetail(path) {
   try {
     const data = await api(`/api/trajectory?path=${encodeURIComponent(path)}`);
-    const t = data.trajectory;
-    let html = `<div class="panel"><h3 style="margin-top:0" class="mono">${escapeHtml(path)}</h3>`;
-    if (t.metadata && Object.keys(t.metadata).length) {
-      html += `<pre class="out">${escapeHtml(JSON.stringify(t.metadata, null, 2))}</pre>`;
-    }
-    html += `<table><tr><th>#</th><th>Tool</th><th></th><th>Details</th></tr>`;
-    (t.steps || []).forEach((s, i) => {
-      let badge = "";
-      if (EDIT_TOOLS.includes(s.tool) || s.type === "file_edit") badge = `<span class="badge edit">changed a file</span>`;
-      else if (CMD_TOOLS.includes(s.tool) || s.type === "command") badge = `<span class="badge cmd">ran a command</span>`;
-      html += `<tr>
-        <td class="muted">${i}</td>
-        <td class="mono">${escapeHtml(s.tool || s.type || "?")}</td>
-        <td>${badge}</td>
-        <td><div class="step-args">${escapeHtml(JSON.stringify(s.args || {}))}</div></td>
-      </tr>`;
-    });
-    html += "</table></div>";
-    $("traj-detail").innerHTML = html;
+    $("traj-detail").innerHTML = renderTrajectoryDetail(path, data.trajectory);
+    $("traj-detail").scrollIntoView({ behavior: "smooth" });
+  } catch (e) {
+    $("traj-err").textContent = e.message;
+  }
+}
+
+async function showLiveSessionDetail(path) {
+  try {
+    const data = await api(`/api/session?path=${encodeURIComponent(path)}`);
+    $("traj-detail").innerHTML = renderTrajectoryDetail(path, data.trajectory);
     $("traj-detail").scrollIntoView({ behavior: "smooth" });
   } catch (e) {
     $("traj-err").textContent = e.message;

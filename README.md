@@ -34,6 +34,8 @@ agentbench diff \
 
 # Desktop client (native window): gate runner + task browser + recorder
 # Prebuilt Windows/macOS/Linux downloads: see docs/UI.md
+# (Windows/macOS may warn the build is from an unidentified publisher —
+#  see docs/UI.md#windows-says-it-protected-your-pc)
 pip install -e ".[app]"
 agentbench app
 
@@ -73,8 +75,9 @@ agentbench watch --once --digest report.md   # one-shot report you can share
 | Client | Status |
 |--------|--------|
 | Claude Code | First-class (live tail) |
+| Codex CLI | First-class (live tail) |
 | Cursor | Parsed, best-effort (SQLite store) |
-| Codex CLI · Antigravity | Detected — parsing coming |
+| Antigravity | Detected — parsing coming |
 
 Rules catch the ways agents cut corners: deleted **or weakened** assertions
 (`assert True`), disabled tests, out-of-project writes, secret-file writes
