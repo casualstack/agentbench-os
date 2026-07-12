@@ -78,12 +78,14 @@ class SessionWatcher:
         self._skip_existing = skip_existing
         self._sessions: dict[Path, _SessionState] = {}
         self._primed = False
+        self._last_report: DiscoveryReport | None = None
 
     # -- public -----------------------------------------------------------
 
     def poll(self) -> list[WatchEvent]:
         """Scan for new/grown session files; evaluate and return new activity."""
         report = discover_sessions(self._home)
+        self._last_report = report
         self._register_new(report)
 
         events: list[WatchEvent] = []
@@ -114,7 +116,10 @@ class SessionWatcher:
         return result
 
     def detected_agents(self) -> list[str]:
-        return discover_sessions(self._home).detected_agents
+        """Detected agents from the last poll(), or a fresh scan if never polled."""
+        if self._last_report is None:
+            self._last_report = discover_sessions(self._home)
+        return self._last_report.detected_agents
 
     # -- internals ----------------------------------------------------------
 

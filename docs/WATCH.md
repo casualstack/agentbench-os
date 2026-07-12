@@ -9,7 +9,7 @@ agentbench watch
 ```
 
 ```
-Found: Claude Code, Cursor, Codex CLI (detected — parsing coming soon)
+Found: Claude Code, Cursor, Codex CLI
 Checked 19 recorded session(s).
 [!] Deleted a test assertion — claude-code session 6e19a2f1 in C:\work\myrepo
     The agent removed a check from tests/test_calc.py. Tests that no longer
@@ -27,15 +27,22 @@ subclass of `SourceAdapter` registered in `adapters.ADAPTERS`.
 | Agent | Where sessions live | Status |
 |-------|---------------------|--------|
 | Claude Code | `~/.claude/projects/<project>/<session>.jsonl` | First-class (live tail) |
+| Codex CLI | `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl` | First-class (live tail) |
 | Cursor | SQLite workspace storage (`state.vscdb`) | Parsed, best-effort |
-| Codex CLI | `~/.codex/` | Detected — parsing coming |
 | Antigravity | best-effort home/appdata dir | Detected — parsing coming |
 
-Claude Code is append-only JSONL, so it's tailed incrementally. Cursor's
-store is a SQLite database with no append log, so its sessions are re-parsed
-and diffed by step count on each poll. The Cursor schema is undocumented and
-reverse-engineered — parsing is defensive and degrades to "detected only"
-if the database can't be read.
+Claude Code and Codex CLI are both append-only JSONL, so they're tailed
+incrementally. Cursor's store is a SQLite database with no append log, so
+its sessions are re-parsed and diffed by step count on each poll. The
+Cursor schema is undocumented and reverse-engineered — parsing is defensive
+and degrades to "detected only" if the database can't be read.
+
+Codex rollout files record shell commands (`shell_command` function calls)
+and file edits (`apply_patch` custom tool calls, including add/update/delete
+hunks) — both normalize into the same `run_command`/`write_file`/
+`str_replace` steps as the other clients, so the full default rule set
+(deleted/weakened assertions, destructive commands, secret writes, ...)
+applies to Codex sessions too.
 
 ## Default rules
 

@@ -10,7 +10,6 @@ import pytest
 
 from agentbench.watch.adapters import ADAPTERS
 from agentbench.watch.adapters.antigravity import AntigravityAdapter
-from agentbench.watch.adapters.codex import CodexAdapter
 from agentbench.watch.adapters.cursor import CursorAdapter
 from agentbench.watch.claude_code import parse_session, steps_from_session_text
 from agentbench.watch.rules import check_steps, is_test_file, is_within
@@ -250,19 +249,11 @@ class TestCursorAdapter:
         assert len(cursor_sessions) == 1
 
 
-# -- Codex / Antigravity stubs -------------------------------------------------
+# -- Antigravity stub ----------------------------------------------------------
+# Codex CLI graduated to a real adapter — see tests/test_codex_adapter.py.
 
 
 class TestStubAdapters:
-    def test_codex_detects_but_does_not_parse(self, tmp_path):
-        (tmp_path / ".codex").mkdir()
-        adapter = CodexAdapter()
-        assert adapter.detect(tmp_path)
-        assert adapter.discover(tmp_path) == []
-        report = discover_sessions(home=tmp_path)
-        assert "codex" in report.detected_agents
-        assert not any(s.agent == "codex" for s in report.sessions)
-
     def test_antigravity_detects_but_does_not_parse(self, tmp_path):
         (tmp_path / ".antigravity").mkdir()
         adapter = AntigravityAdapter()
@@ -273,7 +264,7 @@ class TestStubAdapters:
         assert not any(s.agent == "antigravity" for s in report.sessions)
 
     def test_absent_stub_agents_are_not_detected(self, tmp_path):
-        adapter = CodexAdapter()
+        adapter = AntigravityAdapter()
         assert not adapter.detect(tmp_path)
 
 
@@ -744,6 +735,35 @@ class TestSessionWatcher:
         events = watcher.poll()
         assert len(events) == 1
         assert events[0].session_id == "s2"
+
+
+class TestSessionWatcherDiscoveryCaching:
+    """poll() and detected_agents() must share one discovery scan per poll."""
+
+    def test_poll_then_detected_agents_scans_once(self, tmp_path, monkeypatch):
+        _write_session(tmp_path, "s1", [_session_line("Bash", {"command": "ls"})])
+
+        import agentbench.watch.watcher as watcher_module
+
+        calls = {"count": 0}
+        original = watcher_module.discover_sessions
+
+        def _counting(*args, **kwargs):
+            calls["count"] += 1
+            return original(*args, **kwargs)
+
+        monkeypatch.setattr(watcher_module, "discover_sessions", _counting)
+
+        watcher = SessionWatcher(home=tmp_path)
+        watcher.poll()
+        watcher.detected_agents()
+
+        assert calls["count"] == 1
+
+    def test_detected_agents_before_any_poll_still_scans(self, tmp_path, monkeypatch):
+        _write_session(tmp_path, "s1", [_session_line("Bash", {"command": "ls"})])
+        watcher = SessionWatcher(home=tmp_path)
+        assert watcher.detected_agents() == ["claude-code"]
 
 
 class TestSessionWatcherCursor:

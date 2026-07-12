@@ -8,7 +8,6 @@ import sys
 from pathlib import Path
 
 from agentbench.diff_report import build_diff_report
-from agentbench.matrix import MatrixRunner, detect_score_drift
 from agentbench.gate.evaluator import Evaluator
 
 

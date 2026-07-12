@@ -8,9 +8,11 @@ from __future__ import annotations
 
 from typing import Any
 
+from agentbench.watch.adapters import ADAPTERS
+
 _SEVERITY_ORDER = ("critical", "warning")
 _SEVERITY_LABEL = {"critical": "Critical", "warning": "Warnings"}
-_AGENT_LABEL = {"claude-code": "Claude Code", "cursor": "Cursor"}
+_AGENT_LABEL = {a.client_name: a.display_name for a in ADAPTERS}
 
 
 def render_digest(sessions: list[dict[str, Any]]) -> str:
