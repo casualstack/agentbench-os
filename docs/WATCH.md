@@ -9,7 +9,7 @@ agentbench watch
 ```
 
 ```
-Found: Claude Code, Cursor (detected — support coming soon)
+Found: Claude Code, Cursor, Codex CLI (detected — parsing coming soon)
 Checked 19 recorded session(s).
 [!] Deleted a test assertion — claude-code session 6e19a2f1 in C:\work\myrepo
     The agent removed a check from tests/test_calc.py. Tests that no longer
@@ -20,10 +20,22 @@ Watching for new agent activity... (Ctrl+C to stop)
 
 ## What it watches
 
+AgentBench discovers sessions through a pluggable **source adapter** per
+client (`src/agentbench/watch/adapters/`). Adding a new client is one
+subclass of `SourceAdapter` registered in `adapters.ADAPTERS`.
+
 | Agent | Where sessions live | Status |
 |-------|---------------------|--------|
-| Claude Code | `~/.claude/projects/<project>/<session>.jsonl` | First-class |
-| Cursor | SQLite workspace storage | Detected only — parsing coming |
+| Claude Code | `~/.claude/projects/<project>/<session>.jsonl` | First-class (live tail) |
+| Cursor | SQLite workspace storage (`state.vscdb`) | Parsed, best-effort |
+| Codex CLI | `~/.codex/` | Detected — parsing coming |
+| Antigravity | best-effort home/appdata dir | Detected — parsing coming |
+
+Claude Code is append-only JSONL, so it's tailed incrementally. Cursor's
+store is a SQLite database with no append log, so its sessions are re-parsed
+and diffed by step count on each poll. The Cursor schema is undocumented and
+reverse-engineered — parsing is defensive and degrades to "detected only"
+if the database can't be read.
 
 ## Default rules
 
@@ -32,10 +44,13 @@ Every rule ships on by default and needs zero configuration.
 | Rule | Severity | Fires when the agent... |
 |------|----------|------------------------|
 | `deleted_assertion` | critical | removes an assertion from a test file |
+| `weakened_assertion` | critical | replaces a real check with one that always passes (`assert True`, `.toBe(true)`, …) |
 | `skipped_test` | critical | marks a test as skipped/disabled |
 | `test_file_overwritten` | warning | rewrites an entire test file |
 | `test_file_modified` | warning | edits a test file at all |
 | `out_of_project_write` | critical | writes outside the folder it was working in |
+| `secret_file_write` | critical | writes to a secret-shaped file (`.env`, `*.pem`, `id_rsa`, `credentials.json`, …) |
+| `hook_bypass` | critical | skips git safety hooks (`--no-verify`, `--no-gpg-sign`, `HUSKY=0`, …) |
 | `destructive_command` | critical | runs `rm -rf`, `git reset --hard`, force-push, etc. |
 | `network_command` | warning | runs curl/wget/HTTP commands (your own localhost dev server doesn't count) |
 | `privilege_escalation_command` | critical | runs sudo/ACL/permission-bypass style commands |
@@ -55,6 +70,8 @@ agentbench watch --once              # check recorded sessions and exit
 agentbench watch --once --fail-on-alert     # exit 1 on critical findings (CI-friendly)
 agentbench watch --live-only         # ignore history; alert on new activity only
 agentbench watch --interval 5        # seconds between checks (default 2)
+agentbench watch --no-notify         # never send desktop notifications
+agentbench watch --once --digest report.md   # write a shareable markdown report
 ```
 
 ## /diff reports
@@ -69,6 +86,28 @@ agentbench diff \
 ```
 
 Use `--fail-on-change` when you want `/diff` to fail automation on change.
+
+## Desktop notifications
+
+While the live loop is running, each poll that finds new alerts raises a
+single batched desktop notification (e.g. *"AgentBench: 3 issues in myrepo
+(1 critical)"*) — not one toast per alert, so loading a project's history
+never floods you. Notifications are on by default for the live loop and off
+for `--once` (the CI/scripting path); toggle with `--notify` / `--no-notify`.
+
+Delivery is best-effort and needs no setup: AgentBench uses the OS's built-in
+notifier (`osascript` on macOS, `notify-send` on Linux, a PowerShell toast on
+Windows). Install `agentbench[notify]` for a native cross-platform backend.
+If no backend is available, notifications silently do nothing — the terminal
+output is unaffected.
+
+## Session digest
+
+`--digest PATH` writes a plain-English markdown report of every watched
+session — client, project, model, step count, and alerts grouped
+critical-first — after the run (with `--once`, right away; with the live
+loop, on Ctrl+C). It's meant to be shared: paste it into an issue or a
+message to show exactly what an agent did.
 
 ## How it relates to tasks and oracles
 

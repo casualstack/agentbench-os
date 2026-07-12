@@ -58,6 +58,32 @@ pytest -q
 
 See [docs/ORACLE_SPEC.md](docs/ORACLE_SPEC.md) and [docs/EVAL_DSL.md](docs/EVAL_DSL.md).
 
+## Watch mode — zero-config, multi-client
+
+Point AgentBench at the AI coding sessions already on your machine — no task
+JSON, no trajectory exports. It discovers sessions through a pluggable
+**source adapter** per client, checks them against plain-English rules, and
+keeps watching live.
+
+```bash
+agentbench watch                        # check history, then watch live
+agentbench watch --once --digest report.md   # one-shot report you can share
+```
+
+| Client | Status |
+|--------|--------|
+| Claude Code | First-class (live tail) |
+| Cursor | Parsed, best-effort (SQLite store) |
+| Codex CLI · Antigravity | Detected — parsing coming |
+
+Rules catch the ways agents cut corners: deleted **or weakened** assertions
+(`assert True`), disabled tests, out-of-project writes, secret-file writes
+(`.env`, `*.pem`, …), git-hook bypass (`--no-verify`), destructive commands,
+and unexpected network calls. New alerts raise a batched desktop notification
+(optional; `agentbench[notify]`) and everything stays on your machine.
+
+Adding a client is one `SourceAdapter` subclass. Full details: **[docs/WATCH.md](docs/WATCH.md)**.
+
 ## Add to your repo
 
 Gate agent PRs in ~5 minutes. Full walkthrough: **[docs/GITHUB_ACTION.md](docs/GITHUB_ACTION.md)**.
@@ -110,7 +136,7 @@ Overall pass rate 58.3%, zero drift against baseline (threshold 5%). See [BENCHM
 - [Eval DSL](docs/EVAL_DSL.md)
 - [Oracle spec](docs/ORACLE_SPEC.md)
 - [GitHub Action setup](docs/GITHUB_ACTION.md)
-- [Watch mode + accountability guards](docs/WATCH.md)
+- [Watch mode: multi-client adapters + accountability guards](docs/WATCH.md)
 - [Dashboard / UI client](docs/UI.md)
 - [Benchmarks](docs/BENCHMARKS.md)
 
