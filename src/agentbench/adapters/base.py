@@ -9,6 +9,13 @@ re-parse on each poll (see ``adapters.cursor``).
 
 Add a new client by subclassing ``SourceAdapter`` and registering an
 instance in ``adapters.ADAPTERS``.
+
+``supports_interception`` is a Phase 2 seam: every adapter observes
+session logs after the client already wrote them, so this defaults False
+everywhere in Phase 1. It exists now so a future adapter that can
+actually intercept a step before it runs (e.g. a Claude Code PreToolUse
+hook) has somewhere to declare that -- see docs/ACCOUNTABILITY.md for the
+per-client reality-check on which clients this is even plausible for.
 """
 
 from __future__ import annotations
@@ -37,6 +44,10 @@ class SourceAdapter(ABC):
     display_name: str  # human label, e.g. "Claude Code"
     supports_tail: bool = False  # True for append-only JSONL logs
     detect_only: bool = False  # True for stubs that detect but can't parse yet
+    # Phase 2 seam, opt-in per adapter: True means this client can actually
+    # intercept a step before it runs (not just observe it after the fact).
+    # Every Phase 1 adapter is observation-only, so this is False everywhere.
+    supports_interception: bool = False
 
     @abstractmethod
     def detect(self, home: Path) -> bool:

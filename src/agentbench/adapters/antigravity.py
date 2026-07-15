@@ -21,6 +21,7 @@ class AntigravityAdapter(SourceAdapter):
     display_name = "Antigravity"
     supports_tail = False
     detect_only = True
+    supports_interception = False  # observation-only in Phase 1
 
     def _roots(self, home: Path) -> list[Path]:
         # Derived from `home` rather than the real %APPDATA% env var, so a

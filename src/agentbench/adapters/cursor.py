@@ -42,6 +42,7 @@ class CursorAdapter(SourceAdapter):
     client_name = "cursor"
     display_name = "Cursor"
     supports_tail = False  # re-parsed and diffed by step count on each poll
+    supports_interception = False  # observation-only in Phase 1
 
     def _workspace_storage_roots(self, home: Path) -> list[Path]:
         # Deliberately derived from `home` rather than read from the real

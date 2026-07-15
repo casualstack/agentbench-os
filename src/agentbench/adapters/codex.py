@@ -213,6 +213,7 @@ class CodexAdapter(SourceAdapter):
     display_name = "Codex CLI"
     supports_tail = True  # append-only JSONL, safe to byte-tail
     detect_only = False
+    supports_interception = False  # observation-only in Phase 1
 
     def _sessions_root(self, home: Path) -> Path:
         return home / ".codex" / "sessions"

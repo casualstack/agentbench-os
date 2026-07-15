@@ -23,6 +23,7 @@ class ClaudeCodeAdapter(SourceAdapter):
     client_name = "claude-code"
     display_name = "Claude Code"
     supports_tail = True  # append-only JSONL, safe to byte-tail
+    supports_interception = False  # observation-only in Phase 1
 
     def _root(self, home: Path) -> Path:
         return home / ".claude" / "projects"

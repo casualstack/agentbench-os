@@ -185,6 +185,18 @@ class TestAdapterRegistry:
         names = {a.client_name for a in ADAPTERS}
         assert names == {"claude-code", "cursor", "codex", "antigravity"}
 
+    def test_no_adapter_supports_interception_yet(self):
+        # Phase 2 seam: every adapter is observation-only in Phase 1 --
+        # none can intercept a step before it runs, only read the log
+        # after the client already wrote it.
+        for adapter in ADAPTERS:
+            assert adapter.supports_interception is False, adapter.client_name
+
+    def test_supports_interception_defaults_false_on_the_base_class(self):
+        from agentbench.adapters.base import SourceAdapter
+
+        assert SourceAdapter.supports_interception is False
+
     def test_discovery_survives_a_broken_adapter(self, tmp_path, monkeypatch):
         _write_session(tmp_path, "s1", [_session_line("Bash", {"command": "ls"})])
 
