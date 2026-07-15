@@ -833,3 +833,111 @@ class TestWatchCli:
         exit_code = main(["watch", "--once"])
         assert exit_code == 1
         assert "No AI coding agents found" in capsys.readouterr().out
+
+    def test_watch_once_logs_alerts_to_audit_trail_by_default(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        _write_session(
+            tmp_path,
+            "s1",
+            [
+                _session_line(
+                    "Edit",
+                    {
+                        "file_path": "tests/test_app.py",
+                        "old_string": "assert x == 1",
+                        "new_string": "pass",
+                    },
+                )
+            ],
+        )
+        monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+
+        from agentbench.accountability.audit import AuditStore
+        from agentbench.cli.main import main
+
+        exit_code = main(["watch", "--once"])
+        capsys.readouterr()
+        assert exit_code == 0
+
+        with AuditStore(tmp_path / ".agentbench" / "audit.db") as store:
+            events = list(store.iter_events())
+            assert len(events) == 1
+            assert events[0]["rule"] == "deleted_assertion"
+            assert store.verify() is None
+
+    def test_watch_once_respects_audit_db_override(self, tmp_path, monkeypatch, capsys):
+        _write_session(
+            tmp_path,
+            "s1",
+            [
+                _session_line(
+                    "Edit",
+                    {
+                        "file_path": "tests/test_app.py",
+                        "old_string": "assert x == 1",
+                        "new_string": "pass",
+                    },
+                )
+            ],
+        )
+        monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+        custom_db = tmp_path / "custom-audit.db"
+
+        from agentbench.accountability.audit import AuditStore
+        from agentbench.cli.main import main
+
+        exit_code = main(["watch", "--once", "--audit-db", str(custom_db)])
+        capsys.readouterr()
+        assert exit_code == 0
+        assert custom_db.exists()
+        assert not (tmp_path / ".agentbench" / "audit.db").exists()
+
+        with AuditStore(custom_db) as store:
+            assert len(list(store.iter_events())) == 1
+
+    def test_watch_once_no_audit_log_skips_the_audit_trail(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        _write_session(
+            tmp_path,
+            "s1",
+            [
+                _session_line(
+                    "Edit",
+                    {
+                        "file_path": "tests/test_app.py",
+                        "old_string": "assert x == 1",
+                        "new_string": "pass",
+                    },
+                )
+            ],
+        )
+        monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+
+        from agentbench.cli.main import main
+
+        exit_code = main(["watch", "--once", "--no-audit-log"])
+        capsys.readouterr()
+        assert exit_code == 0
+        assert not (tmp_path / ".agentbench" / "audit.db").exists()
+
+    def test_watch_once_clean_session_writes_no_audit_rows(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        # Reviewer amendment: only real alerts are chained -- a session
+        # with no alerts must not create a heartbeat/session_seen row.
+        _write_session(
+            tmp_path, "s1", [_session_line("Bash", {"command": "pytest -q"})]
+        )
+        monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+
+        from agentbench.accountability.audit import AuditStore
+        from agentbench.cli.main import main
+
+        exit_code = main(["watch", "--once"])
+        capsys.readouterr()
+        assert exit_code == 0
+
+        with AuditStore(tmp_path / ".agentbench" / "audit.db") as store:
+            assert list(store.iter_events()) == []

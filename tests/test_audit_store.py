@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import sqlite3
+from pathlib import Path
 
 import pytest
 
-from agentbench.accountability.audit.store import AuditStore
+from agentbench.accountability.audit.store import AuditStore, default_db_path
 
 
 def _record(**overrides):
@@ -140,3 +141,17 @@ def test_verify_catches_deleted_row(tmp_path):
         # Row 3's prev_hash no longer matches row 1's record_hash once
         # row 2 is gone, so verification breaks at row 3.
         assert s.verify() == 3
+
+
+def test_default_db_path_follows_home(tmp_path, monkeypatch):
+    # Must resolve Path.home() fresh on every call, not once at import time --
+    # otherwise tests (and anything else that changes home at runtime) would
+    # silently fall through to the real ~/.agentbench/audit.db.
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    assert default_db_path() == tmp_path / ".agentbench" / "audit.db"
+
+
+def test_audit_store_uses_default_db_path_when_none_given(tmp_path, monkeypatch):
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    with AuditStore() as s:
+        assert s.path == tmp_path / ".agentbench" / "audit.db"

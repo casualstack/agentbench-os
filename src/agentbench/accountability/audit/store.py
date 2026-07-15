@@ -16,13 +16,25 @@ from __future__ import annotations
 
 import sqlite3
 import threading
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterator
+from typing import TYPE_CHECKING, Any, Iterator
 
 from agentbench.accountability.audit.chain import GENESIS, compute_hash, verify_chain
 from agentbench.accountability.rules import is_within
 
-DEFAULT_DB_PATH = Path.home() / ".agentbench" / "audit.db"
+if TYPE_CHECKING:
+    from agentbench.accountability.rules import Alert
+
+def default_db_path() -> Path:
+    """The global audit trail path, resolved fresh on every call.
+
+    Deliberately a function rather than a module-level constant: computing
+    ``Path.home()`` once at import time would freeze the wrong value if
+    something (a test, ``HOME``/``USERPROFILE`` set differently, etc.)
+    changes home afterward.
+    """
+    return Path.home() / ".agentbench" / "audit.db"
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS events (
@@ -70,7 +82,7 @@ class AuditStore:
     """Append-only, hash-chained record of alerts AgentBench has raised."""
 
     def __init__(self, db_path: Path | str | None = None) -> None:
-        self.path = Path(db_path) if db_path is not None else DEFAULT_DB_PATH
+        self.path = Path(db_path) if db_path is not None else default_db_path()
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
         self._conn = sqlite3.connect(str(self.path), check_same_thread=False)
@@ -178,3 +190,39 @@ class AuditStore:
                 "SELECT * FROM events ORDER BY id ASC"
             ).fetchall()]
         return verify_chain(rows)
+
+
+def record_from_alert(
+    *,
+    agent: str,
+    session_id: str,
+    cwd: str | None,
+    model: str | None,
+    alert: Alert,
+    source_path: str | None = None,
+    source_size: int | None = None,
+    source_mtime: float | None = None,
+) -> dict[str, Any]:
+    """Build an ``append()``-ready record from one alert.
+
+    Pulled out into its own function so the watch poll loop (cli/main.py)
+    can call it without ``watcher.py`` itself knowing anything about
+    SQLite or the audit trail -- ``SessionWatcher.poll()`` returns plain
+    ``WatchEvent``/``Alert`` dataclasses and stays storage-agnostic.
+    """
+    return {
+        "ts": datetime.now(timezone.utc).isoformat(),
+        "agent": agent,
+        "session_id": session_id,
+        "cwd": cwd,
+        "model": model,
+        "step_index": alert.step_index,
+        "rule": alert.rule,
+        "severity": alert.severity,
+        "title": alert.title,
+        "detail": alert.detail,
+        "path": alert.path,
+        "source_path": source_path,
+        "source_size": source_size,
+        "source_mtime": source_mtime,
+    }

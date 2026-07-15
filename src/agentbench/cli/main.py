@@ -124,10 +124,11 @@ def _print_watch_events(events: list) -> int:
 def cmd_watch(args: argparse.Namespace) -> int:
     import time
 
-    from agentbench.adapters import ADAPTERS
+    from agentbench.accountability.audit import AuditStore, record_from_alert
     from agentbench.accountability.digest import render_digest
     from agentbench.accountability.notify import backend_available, notify, summarize_alerts
     from agentbench.accountability.watcher import SessionWatcher
+    from agentbench.adapters import ADAPTERS
 
     # Alert copy uses em dashes; legacy Windows consoles default to cp1252.
     if hasattr(sys.stdout, "reconfigure"):
@@ -165,6 +166,10 @@ def cmd_watch(args: argparse.Namespace) -> int:
     if notifications_enabled is None:
         notifications_enabled = not args.once and backend_available()
 
+    # Recorded by default: every alert is appended to the durable, hash-
+    # chained audit trail unless the caller explicitly opts out.
+    audit_store = None if args.no_audit_log else AuditStore(args.audit_db)
+
     def _maybe_notify(poll_events: list) -> None:
         if not notifications_enabled:
             return
@@ -172,34 +177,88 @@ def cmd_watch(args: argparse.Namespace) -> int:
         if summary is not None:
             notify(*summary)
 
+    def _maybe_log_audit(poll_events: list) -> None:
+        # Reviewer amendment: only real alerts are chained -- no
+        # heartbeat/session_seen rows, so events with no alerts append
+        # nothing here.
+        if audit_store is None:
+            return
+        for event in poll_events:
+            if not event.alerts:
+                continue
+            source_size = source_mtime = None
+            try:
+                stat = event.path.stat()
+                source_size, source_mtime = stat.st_size, stat.st_mtime
+            except OSError:
+                pass
+            for alert in event.alerts:
+                record = record_from_alert(
+                    agent=event.agent,
+                    session_id=event.session_id,
+                    cwd=event.cwd,
+                    model=event.model,
+                    alert=alert,
+                    source_path=str(event.path),
+                    source_size=source_size,
+                    source_mtime=source_mtime,
+                )
+                try:
+                    audit_store.append(record)
+                except Exception as exc:  # never let a write failure kill watch
+                    print(f"[!] Failed to write audit log entry: {exc}", file=sys.stderr)
+
     def _maybe_write_digest() -> None:
         if args.digest:
             args.digest.write_text(render_digest(watcher.sessions()), encoding="utf-8")
 
-    events = watcher.poll()  # first poll covers existing session history
-    total_sessions = len(watcher.sessions())
-    scope = f" for {args.project}" if args.project else ""
-    print(f"Checked {total_sessions} recorded session(s){scope}.")
-    critical = _print_watch_events(events)
-    if not any(e.alerts for e in events):
-        print("No problems found in recorded sessions.")
-    _maybe_notify(events)
+    try:
+        events = watcher.poll()  # first poll covers existing session history
+        total_sessions = len(watcher.sessions())
+        scope = f" for {args.project}" if args.project else ""
+        print(f"Checked {total_sessions} recorded session(s){scope}.")
+        critical = _print_watch_events(events)
+        if not any(e.alerts for e in events):
+            print("No problems found in recorded sessions.")
+        _maybe_notify(events)
+        _maybe_log_audit(events)
 
-    if args.once:
+        if args.once:
+            _maybe_write_digest()
+            return 1 if critical and args.fail_on_alert else 0
+
+        print("\nWatching for new agent activity... (Ctrl+C to stop)")
+        try:
+            while True:
+                time.sleep(args.interval)
+                poll_events = watcher.poll()
+                critical += _print_watch_events(poll_events)
+                _maybe_notify(poll_events)
+                _maybe_log_audit(poll_events)
+        except KeyboardInterrupt:
+            print("\nStopped watching.")
         _maybe_write_digest()
         return 1 if critical and args.fail_on_alert else 0
+    finally:
+        if audit_store is not None:
+            audit_store.close()
 
-    print("\nWatching for new agent activity... (Ctrl+C to stop)")
+
+def cmd_audit_verify(args: argparse.Namespace) -> int:
+    from agentbench.accountability.audit import AuditStore
+
+    store = AuditStore(args.db)
     try:
-        while True:
-            time.sleep(args.interval)
-            poll_events = watcher.poll()
-            critical += _print_watch_events(poll_events)
-            _maybe_notify(poll_events)
-    except KeyboardInterrupt:
-        print("\nStopped watching.")
-    _maybe_write_digest()
-    return 1 if critical and args.fail_on_alert else 0
+        broken = store.verify()
+    finally:
+        store.close()
+
+    if broken is None:
+        print(f"OK: audit trail intact ({store.path})")
+        return 0
+
+    print(f"BROKEN: audit trail tampered starting at event id={broken} ({store.path})")
+    return 1
 
 
 def cmd_diff(args: argparse.Namespace) -> int:
@@ -353,7 +412,34 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         help="Write a plain-English markdown report of all watched sessions to this path",
     )
+    watch_parser.add_argument(
+        "--audit-db",
+        type=Path,
+        help="Path to the audit database (default: ~/.agentbench/audit.db)",
+    )
+    watch_parser.add_argument(
+        "--no-audit-log",
+        action="store_true",
+        help="Don't record alerts to the durable audit trail (default: recorded)",
+    )
     watch_parser.set_defaults(func=cmd_watch)
+
+    audit_parser = sub.add_parser(
+        "audit",
+        help="Inspect the durable, tamper-evident audit trail",
+    )
+    audit_sub = audit_parser.add_subparsers(dest="audit_command", required=True)
+
+    audit_verify_parser = audit_sub.add_parser(
+        "verify",
+        help="Verify the audit trail's hash chain hasn't been tampered with",
+    )
+    audit_verify_parser.add_argument(
+        "--db",
+        type=Path,
+        help="Path to the audit database (default: ~/.agentbench/audit.db)",
+    )
+    audit_verify_parser.set_defaults(func=cmd_audit_verify)
 
     diff_parser = sub.add_parser(
         "diff",
