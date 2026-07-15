@@ -6,6 +6,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 from agentbench.accountability.diff import build_diff_report
 from agentbench.eval.gate.evaluator import Evaluator
@@ -261,6 +262,89 @@ def cmd_audit_verify(args: argparse.Namespace) -> int:
     return 1
 
 
+_INCIDENT_SEVERITY_MARK = {"critical": "[!]", "warning": "[~]"}
+
+
+def _format_incident_line(incident: Any) -> str:
+    mark = _INCIDENT_SEVERITY_MARK.get(incident.severity, "[?]")
+    where = incident.cwd or "unknown location"
+    return (
+        f"{mark} [{incident.status}] {incident.incident_id}  {incident.title} — "
+        f"{incident.agent} session {incident.session_id[:8]} in {where}"
+    )
+
+
+def cmd_incidents_list(args: argparse.Namespace) -> int:
+    from agentbench.accountability.audit import IncidentStore
+
+    with IncidentStore(args.db) as store:
+        incidents = store.list(
+            status=args.status,
+            severity=args.severity,
+            project=str(args.project) if args.project else None,
+        )
+
+    if not incidents:
+        print("No incidents found.")
+        return 0
+
+    for incident in incidents:
+        print(_format_incident_line(incident))
+    print(f"\n{len(incidents)} incident(s).")
+    return 0
+
+
+def cmd_incidents_show(args: argparse.Namespace) -> int:
+    from agentbench.accountability.audit import IncidentStore
+
+    with IncidentStore(args.db) as store:
+        incident = store.get(args.incident_id)
+
+    if incident is None:
+        print(f"No incident found with id {args.incident_id}")
+        return 1
+
+    print(f"Incident {incident.incident_id} [{incident.status}]")
+    print(f"  Rule: {incident.rule} ({incident.severity})")
+    print(f"  Title: {incident.title}")
+    print(f"  Detail: {incident.detail}")
+    print(f"  Agent: {incident.agent}  Session: {incident.session_id}")
+    print(f"  Project: {incident.cwd or 'unknown'}")
+    print(f"  Path: {incident.path or '-'}")
+    print(f"  Observed: {incident.ts}")
+    if incident.note:
+        print(f"  Note: {incident.note}")
+    if incident.resolved_at:
+        print(f"  Resolved: {incident.resolved_at} by {incident.resolved_by}")
+    return 0
+
+
+def cmd_incidents_ack(args: argparse.Namespace) -> int:
+    from agentbench.accountability.audit import IncidentStore
+
+    with IncidentStore(args.db) as store:
+        incident = store.acknowledge(args.incident_id, note=args.note)
+
+    if incident is None:
+        print(f"No incident found with id {args.incident_id}")
+        return 1
+    print(f"Acknowledged {incident.incident_id}.")
+    return 0
+
+
+def cmd_incidents_resolve(args: argparse.Namespace) -> int:
+    from agentbench.accountability.audit import IncidentStore
+
+    with IncidentStore(args.db) as store:
+        incident = store.resolve(args.incident_id, note=args.note)
+
+    if incident is None:
+        print(f"No incident found with id {args.incident_id}")
+        return 1
+    print(f"Resolved {incident.incident_id}.")
+    return 0
+
+
 def cmd_diff(args: argparse.Namespace) -> int:
     report = build_diff_report(args.baseline, args.candidate)
     markdown = report.to_markdown()
@@ -440,6 +524,66 @@ def build_parser() -> argparse.ArgumentParser:
         help="Path to the audit database (default: ~/.agentbench/audit.db)",
     )
     audit_verify_parser.set_defaults(func=cmd_audit_verify)
+
+    incidents_parser = sub.add_parser(
+        "incidents",
+        help="Queryable backlog of alert incidents (open/acknowledged/resolved)",
+    )
+    incidents_sub = incidents_parser.add_subparsers(dest="incidents_command", required=True)
+
+    incidents_list_parser = incidents_sub.add_parser("list", help="List incidents")
+    incidents_list_parser.add_argument(
+        "--status",
+        choices=["open", "acknowledged", "resolved"],
+        help="Only show incidents in this status",
+    )
+    incidents_list_parser.add_argument(
+        "--severity",
+        choices=["critical", "warning"],
+        help="Only show incidents of this severity",
+    )
+    incidents_list_parser.add_argument(
+        "--project",
+        type=Path,
+        help="Only show incidents from sessions working in this folder",
+    )
+    incidents_list_parser.add_argument(
+        "--db",
+        type=Path,
+        help="Path to the audit database (default: ~/.agentbench/audit.db)",
+    )
+    incidents_list_parser.set_defaults(func=cmd_incidents_list)
+
+    incidents_show_parser = incidents_sub.add_parser("show", help="Show one incident in full")
+    incidents_show_parser.add_argument("incident_id")
+    incidents_show_parser.add_argument(
+        "--db",
+        type=Path,
+        help="Path to the audit database (default: ~/.agentbench/audit.db)",
+    )
+    incidents_show_parser.set_defaults(func=cmd_incidents_show)
+
+    incidents_ack_parser = incidents_sub.add_parser(
+        "ack", help="Acknowledge an incident (seen, not yet resolved)"
+    )
+    incidents_ack_parser.add_argument("incident_id")
+    incidents_ack_parser.add_argument("--note", help="Optional note to attach")
+    incidents_ack_parser.add_argument(
+        "--db",
+        type=Path,
+        help="Path to the audit database (default: ~/.agentbench/audit.db)",
+    )
+    incidents_ack_parser.set_defaults(func=cmd_incidents_ack)
+
+    incidents_resolve_parser = incidents_sub.add_parser("resolve", help="Resolve an incident")
+    incidents_resolve_parser.add_argument("incident_id")
+    incidents_resolve_parser.add_argument("--note", help="Optional note to attach")
+    incidents_resolve_parser.add_argument(
+        "--db",
+        type=Path,
+        help="Path to the audit database (default: ~/.agentbench/audit.db)",
+    )
+    incidents_resolve_parser.set_defaults(func=cmd_incidents_resolve)
 
     diff_parser = sub.add_parser(
         "diff",

@@ -36,7 +36,11 @@ def default_db_path() -> Path:
     """
     return Path.home() / ".agentbench" / "audit.db"
 
-_SCHEMA = """
+
+# Public so incidents.py can ensure this table exists too (it references
+# events by FK and may be constructed before AuditStore ever touches the
+# file) without duplicating the DDL.
+EVENTS_SCHEMA = """
 CREATE TABLE IF NOT EXISTS events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     ts TEXT NOT NULL,
@@ -88,7 +92,7 @@ class AuditStore:
         self._conn = sqlite3.connect(str(self.path), check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA journal_mode=WAL")
-        self._conn.execute(_SCHEMA)
+        self._conn.execute(EVENTS_SCHEMA)
         self._conn.commit()
 
     def close(self) -> None:

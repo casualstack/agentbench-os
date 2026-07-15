@@ -1,6 +1,6 @@
 """Zero-config session watching: auto-detect agent sessions, raise plain-English alerts."""
 
-from agentbench.accountability.audit import AuditStore
+from agentbench.accountability.audit import AuditStore, Incident, IncidentStore
 from agentbench.accountability.rules import Alert, check_steps
 from agentbench.accountability.session_parser import parse_session, steps_from_session_text
 from agentbench.accountability.sources import SessionSource, discover_sessions
@@ -11,6 +11,8 @@ __all__ = [
     "ADAPTERS",
     "Alert",
     "AuditStore",
+    "Incident",
+    "IncidentStore",
     "SessionSource",
     "SessionWatcher",
     "SourceAdapter",
