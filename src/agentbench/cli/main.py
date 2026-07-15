@@ -262,6 +262,34 @@ def cmd_audit_verify(args: argparse.Namespace) -> int:
     return 1
 
 
+def cmd_audit_export(args: argparse.Namespace) -> int:
+    from datetime import datetime, timezone
+
+    from agentbench.accountability.audit import IncidentStore, sessions_from_incidents
+    from agentbench.accountability.digest import render_digest
+
+    with IncidentStore(args.db) as store:
+        incidents = store.list(
+            project=str(args.project) if args.project else None,
+            since=args.since,
+        )
+
+    if args.format == "json":
+        payload = {
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "incident_count": len(incidents),
+            "incidents": [incident.to_dict() for incident in incidents],
+        }
+        text = json.dumps(payload, indent=2) + "\n"
+    else:
+        text = render_digest(sessions_from_incidents(incidents))
+
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(text, encoding="utf-8")
+    print(f"Wrote audit export to {args.output}")
+    return 0
+
+
 _INCIDENT_SEVERITY_MARK = {"critical": "[!]", "warning": "[~]"}
 
 
@@ -524,6 +552,32 @@ def build_parser() -> argparse.ArgumentParser:
         help="Path to the audit database (default: ~/.agentbench/audit.db)",
     )
     audit_verify_parser.set_defaults(func=cmd_audit_verify)
+
+    audit_export_parser = audit_sub.add_parser(
+        "export",
+        help="Export the audit trail as a durable, historical digest (like watch --digest)",
+    )
+    audit_export_parser.add_argument(
+        "--output", required=True, type=Path, help="Report path"
+    )
+    audit_export_parser.add_argument(
+        "--project", type=Path, help="Only include sessions working in this folder"
+    )
+    audit_export_parser.add_argument(
+        "--since", help="Only include events at/after this ISO8601 timestamp"
+    )
+    audit_export_parser.add_argument(
+        "--format",
+        choices=["md", "json"],
+        default="md",
+        help="Output format (default: md)",
+    )
+    audit_export_parser.add_argument(
+        "--db",
+        type=Path,
+        help="Path to the audit database (default: ~/.agentbench/audit.db)",
+    )
+    audit_export_parser.set_defaults(func=cmd_audit_export)
 
     incidents_parser = sub.add_parser(
         "incidents",

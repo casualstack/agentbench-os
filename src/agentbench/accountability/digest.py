@@ -2,6 +2,12 @@
 
 Meant to be shared with someone who has never heard the word "trajectory":
 plain language, critical issues first, nothing to configure.
+
+Also reused by ``agentbench audit export`` for the durable, historical
+equivalent of ``watch --digest`` -- session dicts built from the audit
+trail omit "steps" (there's no live step count to report) and alerts may
+carry a "status" (open/acknowledged/resolved) that live watch alerts
+never have.
 """
 
 from __future__ import annotations
@@ -49,7 +55,8 @@ def _render_session(session: dict[str, Any]) -> list[str]:
     model = session.get("model")
     if model:
         lines.append(f"- Model: {model}")
-    lines.append(f"- Steps: {session.get('steps', 0)}")
+    if "steps" in session:
+        lines.append(f"- Steps: {session.get('steps', 0)}")
     lines.append("")
 
     alerts = session.get("alerts") or []
@@ -67,7 +74,11 @@ def _render_session(session: dict[str, Any]) -> list[str]:
             continue
         lines.append(f"### {_SEVERITY_LABEL[severity]}")
         for alert in group:
-            lines.append(f"- **{alert.get('title')}** — {alert.get('detail')}")
+            line = f"- **{alert.get('title')}** — {alert.get('detail')}"
+            status = alert.get("status")
+            if status:
+                line += f" _(status: {status})_"
+            lines.append(line)
         lines.append("")
 
     return lines

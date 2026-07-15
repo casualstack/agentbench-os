@@ -194,6 +194,7 @@ class IncidentStore:
         status: str | None = None,
         severity: str | None = None,
         project: str | None = None,
+        since: str | None = None,
     ) -> list[Incident]:
         self.sync()
         query = _SELECT + " WHERE 1=1"
@@ -204,6 +205,9 @@ class IncidentStore:
         if severity is not None:
             query += " AND events.severity = ?"
             params.append(severity)
+        if since is not None:
+            query += " AND events.ts >= ?"
+            params.append(since)
         query += " ORDER BY events.id ASC"
 
         with self._lock:
