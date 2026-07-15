@@ -18,7 +18,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from agentbench.accountability.rules import Alert, check_steps
+from agentbench.accountability.policy import ObservePolicyEngine, PolicyContext, PolicyEngine
+from agentbench.accountability.rules import Alert, check_step
 from agentbench.accountability.sources import DiscoveryReport, discover_sessions
 from agentbench.adapters import ADAPTERS
 from agentbench.adapters.base import SourceAdapter
@@ -72,6 +73,7 @@ class SessionWatcher:
         home: Path | None = None,
         project: Path | str | None = None,
         skip_existing: bool = False,
+        policy_engine: PolicyEngine | None = None,
     ) -> None:
         self._home = home
         self._project = str(project) if project is not None else None
@@ -79,6 +81,9 @@ class SessionWatcher:
         self._sessions: dict[Path, _SessionState] = {}
         self._primed = False
         self._last_report: DiscoveryReport | None = None
+        # Phase 2 seam: ObservePolicyEngine always ALLOWs, and its verdict
+        # is discarded below -- accountability only, no enforcement yet.
+        self._policy_engine = policy_engine or ObservePolicyEngine()
 
     # -- public -----------------------------------------------------------
 
@@ -266,7 +271,28 @@ class SessionWatcher:
             state.step_count += len(steps)
             return None
 
-        alerts = check_steps(steps, cwd=state.cwd, start_index=state.step_count)
+        # Same loop check_steps() runs internally, unrolled here so each
+        # step's alerts can also feed the Phase 2 policy seam below.
+        alerts: list[Alert] = []
+        for i, step in enumerate(steps):
+            step_index = state.step_count + i
+            step_alerts = check_step(step, step_index, cwd=state.cwd)
+            alerts.extend(step_alerts)
+
+            # Phase 2 seam: verdict is computed and discarded, never acted
+            # on. ObservePolicyEngine always ALLOWs, so this changes zero
+            # observable behavior in Phase 1.
+            self._policy_engine.evaluate(
+                PolicyContext(
+                    agent=state.agent,
+                    session_id=state.session_id,
+                    cwd=state.cwd,
+                    step=step,
+                    step_index=step_index,
+                    alerts=step_alerts,
+                )
+            )
+
         state.step_count += len(steps)
         state.alerts.extend(alerts)
 
