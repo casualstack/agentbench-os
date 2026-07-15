@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
+from agentbench.accountability.audit import AuditStore, IncidentStore
 from agentbench.accountability.diff import build_diff_report
 from agentbench.accountability.digest import render_digest
 from agentbench.accountability.recorder import build_trajectory, steps_from_jsonl
@@ -98,6 +99,9 @@ class UIHandler(BaseHTTPRequestHandler):
     # the real ~/.claude/projects.
     watch_home: Path | None = None
     _watcher: SessionWatcher | None = None
+    # Override in tests to point incidents/audit at a tmp database instead
+    # of the real ~/.agentbench/audit.db.
+    audit_db: Path | None = None
 
     # -- plumbing ---------------------------------------------------------
 
@@ -162,6 +166,10 @@ class UIHandler(BaseHTTPRequestHandler):
                 self._api_watch_digest()
             elif parsed.path == "/api/session":
                 self._api_session(query)
+            elif parsed.path == "/api/incidents":
+                self._api_incidents(query)
+            elif parsed.path == "/api/audit/verify":
+                self._api_audit_verify()
             else:
                 self._send_error_json("not found", HTTPStatus.NOT_FOUND)
         except (ValueError, OSError, json.JSONDecodeError) as exc:
@@ -410,6 +418,25 @@ class UIHandler(BaseHTTPRequestHandler):
         _session, doc = self._parse_watched_session(raw_path)
         self._send_json({"path": raw_path, "trajectory": doc})
 
+    # -- audit trail / incidents -----------------------------------------------
+
+    def _api_incidents(self, query: dict[str, list[str]]) -> None:
+        """List incidents, same filters as `agentbench incidents list`."""
+        with IncidentStore(self.audit_db) as store:
+            incidents = store.list(
+                status=query.get("status", [None])[0],
+                severity=query.get("severity", [None])[0],
+                project=query.get("project", [None])[0],
+            )
+        self._send_json({"incidents": [i.to_dict() for i in incidents]})
+
+    def _api_audit_verify(self) -> None:
+        """Verify the hash chain, same check as `agentbench audit verify`."""
+        with AuditStore(self.audit_db) as store:
+            broken_event_id = store.verify()
+            path = str(store.path)
+        self._send_json({"ok": broken_event_id is None, "broken_event_id": broken_event_id, "path": path})
+
     # -- detail views ---------------------------------------------------------
 
     def _api_task_detail(self, query: dict[str, list[str]]) -> None:
@@ -514,12 +541,17 @@ def make_server(
     tasks_dir: str = "tasks",
     port: int = 0,
     watch_home: Path | str | None = None,
+    audit_db: Path | str | None = None,
 ) -> ThreadingHTTPServer:
     """Create a dashboard server bound to 127.0.0.1 (port 0 = ephemeral).
 
     ``watch_home`` overrides where the live-watch feature looks for agent
     session logs (``<watch_home>/.claude/projects``); tests point this at a
     tmp dir, real usage leaves it as ``None`` to use the user's home.
+
+    ``audit_db`` overrides where ``/api/incidents``/``/api/audit/verify``
+    read from; tests point this at a tmp database, real usage leaves it as
+    ``None`` to use the global ``~/.agentbench/audit.db``.
     """
     handler = type(
         "BoundUIHandler",
@@ -529,6 +561,7 @@ def make_server(
             "tasks_dir": tasks_dir,
             "watch_home": Path(watch_home) if watch_home is not None else None,
             "_watcher": None,
+            "audit_db": Path(audit_db) if audit_db is not None else None,
         },
     )
     return ThreadingHTTPServer(("127.0.0.1", port), handler)

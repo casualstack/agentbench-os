@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 import threading
 import urllib.error
 import urllib.parse
@@ -11,6 +12,7 @@ from pathlib import Path
 
 import pytest
 
+from agentbench.accountability.audit import AuditStore
 from agentbench.ui.server import make_server
 
 REPO_ROOT = Path(__file__).parent.parent
@@ -188,3 +190,100 @@ def test_api_watch_empty_machine(tmp_path, monkeypatch):
     finally:
         server.shutdown()
         server.server_close()
+
+
+# -- audit trail / incidents ---------------------------------------------------
+
+
+def _audit_record(**overrides):
+    record = {
+        "ts": "2026-07-15T00:00:00Z",
+        "agent": "claude-code",
+        "session_id": "s1",
+        "cwd": CWD,
+        "model": "claude-x",
+        "step_index": 0,
+        "rule": "deleted_assertion",
+        "severity": "critical",
+        "title": "Deleted a test assertion",
+        "detail": "The agent removed a check.",
+        "path": "tests/test_calc.py",
+        "source_path": None,
+        "source_size": None,
+        "source_mtime": None,
+    }
+    record.update(overrides)
+    return record
+
+
+@pytest.fixture
+def audit_server(tmp_path):
+    db_path = tmp_path / "audit.db"
+    with AuditStore(db_path) as store:
+        store.append(_audit_record())
+        store.append(_audit_record(step_index=1, rule="skipped_test", severity="critical"))
+
+    server = make_server(REPO_ROOT, tasks_dir="tasks", port=0, audit_db=db_path)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    yield f"http://127.0.0.1:{server.server_address[1]}", db_path
+    server.shutdown()
+    server.server_close()
+
+
+def test_api_incidents_lists_synced_incidents(audit_server):
+    base, _ = audit_server
+    data = _get(base + "/api/incidents")
+
+    assert len(data["incidents"]) == 2
+    rules = {i["rule"] for i in data["incidents"]}
+    assert rules == {"deleted_assertion", "skipped_test"}
+    assert all(i["status"] == "open" for i in data["incidents"])
+
+
+def test_api_incidents_filters_by_status(audit_server):
+    base, db_path = audit_server
+
+    from agentbench.accountability.audit import IncidentStore
+
+    with IncidentStore(db_path) as store:
+        [first, _second] = store.list()
+        store.resolve(first.incident_id)
+
+    open_data = _get(base + "/api/incidents?status=open")
+    resolved_data = _get(base + "/api/incidents?status=resolved")
+    assert len(open_data["incidents"]) == 1
+    assert len(resolved_data["incidents"]) == 1
+
+
+def test_api_incidents_empty_db(tmp_path):
+    server = make_server(REPO_ROOT, tasks_dir="tasks", port=0, audit_db=tmp_path / "audit.db")
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        data = _get(base + "/api/incidents")
+        assert data["incidents"] == []
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_api_audit_verify_ok(audit_server):
+    base, _ = audit_server
+    data = _get(base + "/api/audit/verify")
+    assert data["ok"] is True
+    assert data["broken_event_id"] is None
+
+
+def test_api_audit_verify_reports_broken_chain(audit_server):
+    base, db_path = audit_server
+
+    conn = sqlite3.connect(str(db_path))
+    conn.execute("UPDATE events SET detail = 'edited' WHERE id = 1")
+    conn.commit()
+    conn.close()
+
+    data = _get(base + "/api/audit/verify")
+    assert data["ok"] is False
+    assert data["broken_event_id"] == 1
