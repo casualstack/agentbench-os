@@ -124,7 +124,7 @@ def _print_watch_events(events: list) -> int:
 def cmd_watch(args: argparse.Namespace) -> int:
     import time
 
-    from agentbench.watch.adapters import ADAPTERS
+    from agentbench.adapters import ADAPTERS
     from agentbench.watch.digest import render_digest
     from agentbench.watch.notify import backend_available, notify, summarize_alerts
     from agentbench.watch.watcher import SessionWatcher

@@ -29,7 +29,7 @@ import re
 from pathlib import Path
 from typing import Any, Iterator
 
-from agentbench.watch.adapters.base import SessionSource, SourceAdapter
+from agentbench.adapters.base import SessionSource, SourceAdapter
 
 _UUID_RE = re.compile(
     r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"

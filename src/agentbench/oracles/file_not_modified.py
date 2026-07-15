@@ -6,7 +6,7 @@ from pathlib import Path
 
 from agentbench.models.task import Oracle, OracleResult
 from agentbench.oracles.base import OracleCheck, register_oracle
-from agentbench.runner.trajectory import Trajectory
+from agentbench.core.trajectory import Trajectory
 
 
 @register_oracle

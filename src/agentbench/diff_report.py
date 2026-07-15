@@ -6,7 +6,7 @@ from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
-from agentbench.runner.trajectory import Trajectory
+from agentbench.core.trajectory import Trajectory
 
 
 @dataclass

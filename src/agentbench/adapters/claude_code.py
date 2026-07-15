@@ -3,6 +3,9 @@
 The actual parsing lives in ``agentbench.watch.claude_code`` (kept in place
 since ``watcher.py`` and existing tests import those functions directly);
 this module just wraps that logic behind the ``SourceAdapter`` interface.
+The import is deferred to call time: ``adapters`` and ``watch`` are separate
+top-level packages and ``watch`` imports this module's package, so a
+module-level import here would be circular.
 """
 
 from __future__ import annotations
@@ -10,13 +13,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from agentbench.watch.adapters.base import SessionSource, SourceAdapter
-from agentbench.watch.claude_code import (
-    iter_records,
-    parse_session,
-    session_metadata,
-    steps_from_session_text,
-)
+from agentbench.adapters.base import SessionSource, SourceAdapter
 
 
 class ClaudeCodeAdapter(SourceAdapter):
@@ -51,10 +48,16 @@ class ClaudeCodeAdapter(SourceAdapter):
         return sources
 
     def parse_session(self, path: Path) -> dict[str, Any]:
+        from agentbench.watch.claude_code import parse_session
+
         return parse_session(path)
 
     def metadata_from_text(self, text: str) -> dict[str, Any]:
+        from agentbench.watch.claude_code import iter_records, session_metadata
+
         return session_metadata(iter_records(text))
 
     def steps_from_text(self, text: str) -> list[dict[str, Any]]:
+        from agentbench.watch.claude_code import steps_from_session_text
+
         return steps_from_session_text(text)

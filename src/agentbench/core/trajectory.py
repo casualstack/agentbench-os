@@ -7,10 +7,29 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from agentbench.core.steps import RUN_TOOLS, WRITE_TOOLS, step_command, step_path
+
+
+class ValidationError(ValueError):
+    """Raised when eval DSL documents fail schema validation."""
+
 
 def normalize_rel_path(path: str) -> str:
     """Normalize a workspace-relative path to forward slashes."""
     return path.replace("\\", "/").lstrip("/")
+
+
+def validate_trajectory_dict(data: dict[str, Any]) -> None:
+    if not isinstance(data, dict):
+        raise ValidationError("trajectory must be a JSON object")
+
+    steps = data.get("steps")
+    if not isinstance(steps, list):
+        raise ValidationError("trajectory.steps must be an array")
+
+    for i, step in enumerate(steps):
+        if not isinstance(step, dict):
+            raise ValidationError(f"trajectory.steps[{i}] must be an object")
 
 
 @dataclass
@@ -33,8 +52,6 @@ class Trajectory:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Trajectory:
-        from agentbench.dsl.validator import validate_trajectory_dict
-
         validate_trajectory_dict(data)
         steps = []
         for i, step in enumerate(data.get("steps", [])):
@@ -58,15 +75,10 @@ class Trajectory:
     def file_edits(self) -> list[tuple[int, str, str]]:
         """Return (step_index, path, content) for write/edit operations."""
         edits: list[tuple[int, str, str]] = []
-        write_tools = {"write_file", "edit_file", "str_replace", "Write", "StrReplace"}
 
         for step in self.steps:
-            if step.tool in write_tools or step.step_type == "file_edit":
-                path = (
-                    step.args.get("path")
-                    or step.args.get("file_path")
-                    or step.args.get("target_file")
-                )
+            if step.tool in WRITE_TOOLS or step.step_type == "file_edit":
+                path = step_path(step.args)
                 content = step.args.get("content") or step.args.get("new_string", "")
                 if path:
                     edits.append((step.step_index, normalize_rel_path(path), content))
@@ -84,11 +96,10 @@ class Trajectory:
     def commands(self) -> list[tuple[int, str]]:
         """Return (step_index, command) for shell/run operations."""
         cmds: list[tuple[int, str]] = []
-        run_tools = {"run_command", "shell", "bash", "Bash", "execute"}
 
         for step in self.steps:
-            if step.tool in run_tools or step.step_type == "command":
-                cmd = step.args.get("command") or step.args.get("cmd", "")
+            if step.tool in RUN_TOOLS or step.step_type == "command":
+                cmd = step_command(step.args)
                 if cmd:
                     cmds.append((step.step_index, cmd))
 

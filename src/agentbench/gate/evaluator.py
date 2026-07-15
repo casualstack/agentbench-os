@@ -14,7 +14,7 @@ import agentbench.oracles.no_network  # noqa: F401
 import agentbench.oracles.test_must_pass  # noqa: F401
 
 from agentbench.runner.agent_runner import AgentRunner
-from agentbench.runner.trajectory import Trajectory
+from agentbench.core.trajectory import Trajectory
 
 
 class Evaluator:

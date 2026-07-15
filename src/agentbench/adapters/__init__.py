@@ -6,11 +6,11 @@ client by subclassing ``SourceAdapter`` and appending an instance here.
 
 from __future__ import annotations
 
-from agentbench.watch.adapters.antigravity import AntigravityAdapter
-from agentbench.watch.adapters.base import SessionSource, SourceAdapter
-from agentbench.watch.adapters.claude_code import ClaudeCodeAdapter
-from agentbench.watch.adapters.codex import CodexAdapter
-from agentbench.watch.adapters.cursor import CursorAdapter
+from agentbench.adapters.antigravity import AntigravityAdapter
+from agentbench.adapters.base import SessionSource, SourceAdapter
+from agentbench.adapters.claude_code import ClaudeCodeAdapter
+from agentbench.adapters.codex import CodexAdapter
+from agentbench.adapters.cursor import CursorAdapter
 
 ADAPTERS: list[SourceAdapter] = [
     ClaudeCodeAdapter(),

@@ -22,7 +22,7 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
-from agentbench.watch.adapters.base import SessionSource, SourceAdapter
+from agentbench.adapters.base import SessionSource, SourceAdapter
 
 # Cursor's internal tool names, mapped to the canonical AgentBench
 # vocabulary. Best-effort and incomplete on purpose: these names are

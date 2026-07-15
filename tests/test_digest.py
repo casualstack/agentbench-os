@@ -74,7 +74,7 @@ def test_multiple_sessions_are_grouped_separately():
 
 
 def test_client_label_is_derived_from_adapters_registry():
-    # digest.py derives display labels from agentbench.watch.adapters.ADAPTERS
+    # digest.py derives display labels from agentbench.adapters.ADAPTERS
     # rather than hardcoding them, so newly-parsed clients (like Codex) label
     # correctly without a digest.py change.
     session = _session("s1abcdef", [])

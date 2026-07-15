@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from agentbench.watch.adapters.codex import CodexAdapter
+from agentbench.adapters.codex import CodexAdapter
 from agentbench.watch.rules import check_steps
 from agentbench.watch.sources import discover_sessions
 from agentbench.watch.watcher import SessionWatcher

@@ -13,6 +13,11 @@ from dataclasses import dataclass, field
 from pathlib import PurePath, PurePosixPath, PureWindowsPath
 from typing import Any
 
+from agentbench.core.steps import RUN_TOOLS as _RUN_TOOLS
+from agentbench.core.steps import WRITE_TOOLS as _WRITE_TOOLS
+from agentbench.core.steps import step_command as _step_command
+from agentbench.core.steps import step_path as _step_path
+
 WARNING = "warning"
 CRITICAL = "critical"
 
@@ -92,10 +97,6 @@ _SECRET_PATH_RE = re.compile(
     re.IGNORECASE,
 )
 
-_WRITE_TOOLS = {"write_file", "edit_file", "str_replace", "Write", "StrReplace"}
-_RUN_TOOLS = {"run_command", "shell", "bash", "Bash", "execute"}
-
-
 @dataclass
 class Alert:
     """One plain-English finding about an agent's behavior."""
@@ -131,22 +132,6 @@ def is_test_file(path: str) -> bool:
         or ".spec." in name
         or ".test." in name
     )
-
-
-def _step_path(args: dict[str, Any]) -> str | None:
-    for key in ("path", "file_path", "target_file"):
-        value = args.get(key)
-        if isinstance(value, str) and value:
-            return value
-    return None
-
-
-def _step_command(args: dict[str, Any]) -> str | None:
-    for key in ("command", "cmd"):
-        value = args.get(key)
-        if isinstance(value, str) and value:
-            return value
-    return None
 
 
 def is_within(path: str, root: str) -> bool:

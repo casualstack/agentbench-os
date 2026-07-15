@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 from agentbench.models.task import Oracle, OracleResult
 
 if TYPE_CHECKING:
-    from agentbench.runner.trajectory import Trajectory
+    from agentbench.core.trajectory import Trajectory
 
 
 class OracleCheck(ABC):

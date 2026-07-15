@@ -12,8 +12,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from agentbench.watch.adapters import ADAPTERS
-from agentbench.watch.adapters.base import SessionSource, SourceAdapter
+from agentbench.adapters import ADAPTERS
+from agentbench.adapters.base import SessionSource, SourceAdapter
 
 __all__ = ["DiscoveryReport", "SessionSource", "discover_sessions"]
 

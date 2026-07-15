@@ -9,7 +9,7 @@ from agentbench.oracles.assertion_exists import AssertionExistsOracle
 from agentbench.oracles.file_not_modified import FileNotModifiedOracle
 from agentbench.oracles.no_network import NoNetworkOracle
 from agentbench.oracles.test_must_pass import TestMustPassOracle
-from agentbench.runner.trajectory import Trajectory
+from agentbench.core.trajectory import Trajectory
 
 
 def _workspace_with_calc(tmp_path: Path) -> tuple[Path, dict[str, str]]:

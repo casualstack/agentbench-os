@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from agentbench.watch.adapters import ADAPTERS
+from agentbench.adapters import ADAPTERS
 
 _SEVERITY_ORDER = ("critical", "warning")
 _SEVERITY_LABEL = {"critical": "Critical", "warning": "Warnings"}

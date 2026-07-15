@@ -13,7 +13,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from agentbench.watch.adapters.base import SessionSource, SourceAdapter
+from agentbench.adapters.base import SessionSource, SourceAdapter
 
 
 class AntigravityAdapter(SourceAdapter):

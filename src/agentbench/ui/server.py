@@ -24,8 +24,8 @@ from agentbench.gate.manifest import load_task_manifest
 from agentbench.matrix import MatrixConfig, MatrixRunner, detect_score_drift
 from agentbench.models.task import EvalTask, RunResult
 from agentbench.recorder import build_trajectory, steps_from_jsonl
-from agentbench.runner.trajectory import Trajectory
-from agentbench.watch.adapters import ADAPTERS
+from agentbench.core.trajectory import Trajectory
+from agentbench.adapters import ADAPTERS
 from agentbench.watch.digest import render_digest
 from agentbench.watch.watcher import SessionWatcher
 

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from agentbench.core.trajectory import ValidationError, validate_trajectory_dict
+
 KNOWN_ORACLE_TYPES = frozenset(
     {
         "test_must_pass",
@@ -20,10 +22,6 @@ ORACLE_REQUIRED_PARAMS: dict[str, tuple[str, ...]] = {
     "no_network": (),
     "assertion_exists": ("path", "pattern"),
 }
-
-
-class ValidationError(ValueError):
-    """Raised when eval DSL documents fail schema validation."""
 
 
 def validate_oracle(data: dict[str, Any], *, index: int | None = None) -> None:
@@ -73,16 +71,3 @@ def validate_task_dict(data: dict[str, Any]) -> None:
     tags = data.get("tags", [])
     if tags is not None and not isinstance(tags, list):
         raise ValidationError("task.tags must be an array when present")
-
-
-def validate_trajectory_dict(data: dict[str, Any]) -> None:
-    if not isinstance(data, dict):
-        raise ValidationError("trajectory must be a JSON object")
-
-    steps = data.get("steps")
-    if not isinstance(steps, list):
-        raise ValidationError("trajectory.steps must be an array")
-
-    for i, step in enumerate(steps):
-        if not isinstance(step, dict):
-            raise ValidationError(f"trajectory.steps[{i}] must be an object")

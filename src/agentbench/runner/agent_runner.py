@@ -7,7 +7,7 @@ import tempfile
 from pathlib import Path
 
 from agentbench.models.task import EvalTask
-from agentbench.runner.trajectory import Trajectory, normalize_rel_path
+from agentbench.core.trajectory import Trajectory, normalize_rel_path
 
 
 class AgentRunner:

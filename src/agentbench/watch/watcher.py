@@ -18,8 +18,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from agentbench.watch.adapters import ADAPTERS
-from agentbench.watch.adapters.base import SourceAdapter
+from agentbench.adapters import ADAPTERS
+from agentbench.adapters.base import SourceAdapter
 from agentbench.watch.rules import Alert, check_steps
 from agentbench.watch.sources import DiscoveryReport, discover_sessions
 

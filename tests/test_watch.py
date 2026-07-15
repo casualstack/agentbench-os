@@ -8,9 +8,9 @@ from pathlib import Path
 
 import pytest
 
-from agentbench.watch.adapters import ADAPTERS
-from agentbench.watch.adapters.antigravity import AntigravityAdapter
-from agentbench.watch.adapters.cursor import CursorAdapter
+from agentbench.adapters import ADAPTERS
+from agentbench.adapters.antigravity import AntigravityAdapter
+from agentbench.adapters.cursor import CursorAdapter
 from agentbench.watch.claude_code import parse_session, steps_from_session_text
 from agentbench.watch.rules import check_steps, is_test_file, is_within
 from agentbench.watch.sources import discover_sessions
