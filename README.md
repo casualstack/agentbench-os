@@ -2,10 +2,43 @@
 
 By **[Casualstack](https://casualstack.dev)** — execution accountability for AI agents.
 
-**Continuous agent reliability CI** — property-based oracles that gate AI coding agent runs on pull requests.
-AgentBench is pytest for agent trajectories: load a task, replay a recorded agent run, and fail the gate when oracles detect regressions (deleted assertions, scope creep, network access, failing tests).
+**Security & accountability for AI coding agents** — a durable, tamper-evident record of what they did, plus the property-oracle eval/benchmark suite to prove your gates work.
+AgentBench watches the AI coding sessions already running on your machine and keeps a hash-chained audit trail of every risky thing they do; the same engine also gates agent runs on pull requests with deterministic property checks.
 
-## Quickstart
+## Watch mode — zero-config, multi-client
+
+Point AgentBench at the AI coding sessions already on your machine — no task
+JSON, no trajectory exports. It discovers sessions through a pluggable
+**source adapter** per client, checks them against plain-English rules, keeps
+watching live, and records every alert to a local, tamper-evident audit trail.
+
+```bash
+agentbench watch                        # check history, then watch live, record to the audit trail
+agentbench watch --once --digest report.md   # one-shot report you can share
+
+agentbench audit verify                 # prove the audit trail hasn't been silently edited
+agentbench incidents list --status open # queryable backlog, not just a terminal stream
+```
+
+| Client | Status |
+|--------|--------|
+| Claude Code | First-class (live tail) |
+| Codex CLI | First-class (live tail) |
+| Cursor | Parsed, best-effort (SQLite store) |
+| Antigravity | Detected — parsing coming |
+
+Rules catch the ways agents cut corners: deleted **or weakened** assertions
+(`assert True`), disabled tests, out-of-project writes, secret-file writes
+(`.env`, `*.pem`, …), git-hook bypass (`--no-verify`), destructive commands,
+and unexpected network calls. New alerts raise a batched desktop notification
+(optional; `agentbench[notify]`) and everything stays on your machine.
+
+Adding a client is one `SourceAdapter` subclass. Full details:
+**[docs/WATCH.md](docs/WATCH.md)** · **[docs/ACCOUNTABILITY.md](docs/ACCOUNTABILITY.md)**
+(what "tamper-evident" does and doesn't mean, and the Phase 2
+enforcement roadmap).
+
+## Eval quickstart
 
 ```bash
 # Install (Python 3.11+)
@@ -42,9 +75,6 @@ agentbench app
 # Same client in a browser tab
 agentbench ui
 
-# Local watch mode for accountability alerts
-agentbench watch --once
-
 # Run tests
 pytest -q
 ```
@@ -59,33 +89,6 @@ pytest -q
 | `assertion_exists` | Regex pattern still present in a file |
 
 See [docs/ORACLE_SPEC.md](docs/ORACLE_SPEC.md) and [docs/EVAL_DSL.md](docs/EVAL_DSL.md).
-
-## Watch mode — zero-config, multi-client
-
-Point AgentBench at the AI coding sessions already on your machine — no task
-JSON, no trajectory exports. It discovers sessions through a pluggable
-**source adapter** per client, checks them against plain-English rules, and
-keeps watching live.
-
-```bash
-agentbench watch                        # check history, then watch live
-agentbench watch --once --digest report.md   # one-shot report you can share
-```
-
-| Client | Status |
-|--------|--------|
-| Claude Code | First-class (live tail) |
-| Codex CLI | First-class (live tail) |
-| Cursor | Parsed, best-effort (SQLite store) |
-| Antigravity | Detected — parsing coming |
-
-Rules catch the ways agents cut corners: deleted **or weakened** assertions
-(`assert True`), disabled tests, out-of-project writes, secret-file writes
-(`.env`, `*.pem`, …), git-hook bypass (`--no-verify`), destructive commands,
-and unexpected network calls. New alerts raise a batched desktop notification
-(optional; `agentbench[notify]`) and everything stays on your machine.
-
-Adding a client is one `SourceAdapter` subclass. Full details: **[docs/WATCH.md](docs/WATCH.md)**.
 
 ## Add to your repo
 
@@ -135,11 +138,12 @@ Overall pass rate 58.3%, zero drift against baseline (threshold 5%). See [BENCHM
 
 ## Docs
 
+- [Accountability pillar: audit trail, incidents, Phase 2 roadmap](docs/ACCOUNTABILITY.md)
+- [Watch mode: multi-client adapters + accountability guards](docs/WATCH.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Eval DSL](docs/EVAL_DSL.md)
 - [Oracle spec](docs/ORACLE_SPEC.md)
 - [GitHub Action setup](docs/GITHUB_ACTION.md)
-- [Watch mode: multi-client adapters + accountability guards](docs/WATCH.md)
 - [Dashboard / UI client](docs/UI.md)
 - [Benchmarks](docs/BENCHMARKS.md)
 

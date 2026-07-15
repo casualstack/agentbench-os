@@ -1,6 +1,6 @@
 # Oracle Specification
 
-Oracles are property-based checks applied **after** an agent run. They inspect the final workspace and/or the recorded trajectory.
+*Eval pillar.* Oracles are property-based checks applied **after** an agent run. They inspect the final workspace and/or the recorded trajectory.
 
 ## Common interface
 
@@ -105,11 +105,11 @@ Regex search in a workspace file after agent edits. Passes when pattern matches.
 
 ## Adding a new oracle
 
-1. Create `src/agentbench/oracles/my_oracle.py`
+1. Create `src/agentbench/eval/oracles/my_oracle.py`
 2. Subclass `OracleCheck`, set `oracle_type`
 3. Decorate with `@register_oracle`
-4. Import module in `gate/evaluator.py` for registration side effect
-5. Add type + required params to `dsl/validator.py`
+4. Import module in `eval/gate/evaluator.py` for registration side effect
+5. Add type + required params to `eval/dsl/validator.py`
 6. Document here and add pytest coverage
 
 ## Failure semantics

@@ -1,5 +1,8 @@
 name: AgentBench Gate
 description: Run property-based oracles against agent trajectories on pull requests
+# This action covers the eval/gate pillar only. The accountability pillar
+# (durable audit trail, incidents) runs locally via `agentbench watch` /
+# `agentbench audit verify` — see docs/ACCOUNTABILITY.md.
 author: Casualstack
 
 branding:

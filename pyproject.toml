@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "agentbench"
 version = "0.1.0"
-description = "Continuous agent reliability CI — property-based oracles for AI coding agent runs"
+description = "Security & accountability for AI coding agents — a durable, tamper-evident record of what they did, plus the property-oracle eval suite to prove your gates work"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"

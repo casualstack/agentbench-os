@@ -1,8 +1,10 @@
 # Watch mode — zero-config agent monitoring
 
-Watch mode is the "just works" side of AgentBench. No task JSON, no
-trajectory exports: AgentBench finds the AI coding agent sessions already
-recorded on your machine, checks them, and keeps watching new activity live.
+Watch mode is the "just works" side of AgentBench's accountability pillar
+(see [ACCOUNTABILITY.md](ACCOUNTABILITY.md) for the pillar overview). No
+task JSON, no trajectory exports: AgentBench finds the AI coding agent
+sessions already recorded on your machine, checks them, and keeps
+watching new activity live.
 
 ```bash
 agentbench watch
@@ -21,7 +23,7 @@ Watching for new agent activity... (Ctrl+C to stop)
 ## What it watches
 
 AgentBench discovers sessions through a pluggable **source adapter** per
-client (`src/agentbench/watch/adapters/`). Adding a new client is one
+client (`src/agentbench/adapters/`). Adding a new client is one
 subclass of `SourceAdapter` registered in `adapters.ADAPTERS`.
 
 | Agent | Where sessions live | Status |
@@ -115,6 +117,58 @@ session — client, project, model, step count, and alerts grouped
 critical-first — after the run (with `--once`, right away; with the live
 loop, on Ctrl+C). It's meant to be shared: paste it into an issue or a
 message to show exactly what an agent did.
+
+## Audit trail
+
+Every alert `watch` raises is appended to a local, hash-chained SQLite
+store by default — `agentbench watch` records automatically, no separate
+step needed. Opt out with `--no-audit-log`, or point at a different file
+with `--audit-db PATH` (default: the global `~/.agentbench/audit.db`,
+shared across every project you watch on this machine).
+
+```bash
+agentbench audit verify                      # OK, or the first tampered row + exit 1
+agentbench audit verify --db build/audit.db  # check a specific database
+```
+
+`audit verify` walks the chain and reports either `OK` or the id of the
+first row whose hash no longer matches its content — see
+[ACCOUNTABILITY.md](ACCOUNTABILITY.md) for exactly what that does and
+doesn't prove (short version: it proves AgentBench's own record wasn't
+edited after being written, not that the underlying session log was
+never touched).
+
+```bash
+agentbench audit export --output history.md                      # durable digest, like --digest but historical
+agentbench audit export --output history.json --format json      # for scripting
+agentbench audit export --output history.md --project C:\work\myrepo --since 2026-07-01T00:00:00Z
+```
+
+`audit export` is `watch --digest`'s durable, historical counterpart: same
+markdown shape, sourced from the persisted audit trail instead of the
+current run's in-memory state, with each alert annotated with its
+incident status.
+
+## Incidents
+
+Alerts in the terminal or a digest are a stream; incidents are a queryable
+backlog with disposition. Every alert becomes exactly one incident
+(1:1 — no cross-alert dedup or grouping in Phase 1, see
+[ACCOUNTABILITY.md](ACCOUNTABILITY.md)), starting in `open` status.
+
+```bash
+agentbench incidents list                              # everything, newest last
+agentbench incidents list --status open                # only what's unresolved
+agentbench incidents list --severity critical --project C:\work\myrepo
+agentbench incidents show <incident-id>                 # full detail for one incident
+agentbench incidents ack <incident-id> --note "reviewed, waiting on fix"
+agentbench incidents resolve <incident-id> --note "fixed in a1b2c3d"
+```
+
+Acknowledging or resolving an incident never touches the hash-chained
+`events` table — `audit verify` still reports `OK` after any status
+change, since incident status is deliberately outside the chain (it's
+meant to be mutated; the chain exists to catch mutation elsewhere).
 
 ## How it relates to tasks and oracles
 

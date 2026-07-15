@@ -395,9 +395,203 @@ def cmd_diff(args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="agentbench",
-        description="AgentBench OS — continuous agent reliability CI",
+        description="AgentBench OS — security & accountability for AI coding agents, "
+        "with the eval/benchmark suite to prove your gates work",
     )
     sub = parser.add_subparsers(dest="command", required=True)
+
+    watch_parser = sub.add_parser(
+        "watch",
+        help="Auto-detect agent sessions on this machine and flag risky behavior",
+    )
+    watch_parser.add_argument(
+        "--project",
+        type=Path,
+        help="Only watch sessions working in this folder (default: all)",
+    )
+    watch_parser.add_argument(
+        "--once",
+        action="store_true",
+        help="Check recorded sessions and exit instead of watching live",
+    )
+    watch_parser.add_argument(
+        "--live-only",
+        action="store_true",
+        help="Skip recorded history; only alert on activity from now on",
+    )
+    watch_parser.add_argument(
+        "--interval",
+        type=float,
+        default=2.0,
+        help="Seconds between checks while watching (default: 2)",
+    )
+    watch_parser.add_argument(
+        "--fail-on-alert",
+        action="store_true",
+        help="Exit 1 if any critical alert was raised",
+    )
+    notify_group = watch_parser.add_mutually_exclusive_group()
+    notify_group.add_argument(
+        "--notify",
+        dest="notify",
+        action="store_true",
+        default=None,
+        help="Send a desktop notification when a poll finds new alerts "
+        "(default: on while watching live, if this machine supports it)",
+    )
+    notify_group.add_argument(
+        "--no-notify",
+        dest="notify",
+        action="store_false",
+        help="Never send desktop notifications",
+    )
+    watch_parser.add_argument(
+        "--digest",
+        type=Path,
+        help="Write a plain-English markdown report of all watched sessions to this path",
+    )
+    watch_parser.add_argument(
+        "--audit-db",
+        type=Path,
+        help="Path to the audit database (default: ~/.agentbench/audit.db)",
+    )
+    watch_parser.add_argument(
+        "--no-audit-log",
+        action="store_true",
+        help="Don't record alerts to the durable audit trail (default: recorded)",
+    )
+    watch_parser.set_defaults(func=cmd_watch)
+
+    diff_parser = sub.add_parser(
+        "diff",
+        help="Compare two trajectories and emit a git-like /diff report",
+    )
+    diff_parser.add_argument(
+        "--baseline",
+        required=True,
+        type=Path,
+        help="Baseline trajectory JSON (usually default branch)",
+    )
+    diff_parser.add_argument(
+        "--candidate",
+        required=True,
+        type=Path,
+        help="Candidate trajectory JSON (usually PR branch)",
+    )
+    diff_parser.add_argument(
+        "--output",
+        type=Path,
+        help="Optional report path (.md or .json)",
+    )
+    diff_parser.add_argument(
+        "--fail-on-change",
+        action="store_true",
+        help="Exit 1 if the candidate trajectory differs from baseline",
+    )
+    diff_parser.set_defaults(func=cmd_diff)
+
+    incidents_parser = sub.add_parser(
+        "incidents",
+        help="Queryable backlog of alert incidents (open/acknowledged/resolved)",
+    )
+    incidents_sub = incidents_parser.add_subparsers(dest="incidents_command", required=True)
+
+    incidents_list_parser = incidents_sub.add_parser("list", help="List incidents")
+    incidents_list_parser.add_argument(
+        "--status",
+        choices=["open", "acknowledged", "resolved"],
+        help="Only show incidents in this status",
+    )
+    incidents_list_parser.add_argument(
+        "--severity",
+        choices=["critical", "warning"],
+        help="Only show incidents of this severity",
+    )
+    incidents_list_parser.add_argument(
+        "--project",
+        type=Path,
+        help="Only show incidents from sessions working in this folder",
+    )
+    incidents_list_parser.add_argument(
+        "--db",
+        type=Path,
+        help="Path to the audit database (default: ~/.agentbench/audit.db)",
+    )
+    incidents_list_parser.set_defaults(func=cmd_incidents_list)
+
+    incidents_show_parser = incidents_sub.add_parser("show", help="Show one incident in full")
+    incidents_show_parser.add_argument("incident_id")
+    incidents_show_parser.add_argument(
+        "--db",
+        type=Path,
+        help="Path to the audit database (default: ~/.agentbench/audit.db)",
+    )
+    incidents_show_parser.set_defaults(func=cmd_incidents_show)
+
+    incidents_ack_parser = incidents_sub.add_parser(
+        "ack", help="Acknowledge an incident (seen, not yet resolved)"
+    )
+    incidents_ack_parser.add_argument("incident_id")
+    incidents_ack_parser.add_argument("--note", help="Optional note to attach")
+    incidents_ack_parser.add_argument(
+        "--db",
+        type=Path,
+        help="Path to the audit database (default: ~/.agentbench/audit.db)",
+    )
+    incidents_ack_parser.set_defaults(func=cmd_incidents_ack)
+
+    incidents_resolve_parser = incidents_sub.add_parser("resolve", help="Resolve an incident")
+    incidents_resolve_parser.add_argument("incident_id")
+    incidents_resolve_parser.add_argument("--note", help="Optional note to attach")
+    incidents_resolve_parser.add_argument(
+        "--db",
+        type=Path,
+        help="Path to the audit database (default: ~/.agentbench/audit.db)",
+    )
+    incidents_resolve_parser.set_defaults(func=cmd_incidents_resolve)
+
+    audit_parser = sub.add_parser(
+        "audit",
+        help="Inspect the durable, tamper-evident audit trail",
+    )
+    audit_sub = audit_parser.add_subparsers(dest="audit_command", required=True)
+
+    audit_verify_parser = audit_sub.add_parser(
+        "verify",
+        help="Verify the audit trail's hash chain hasn't been tampered with",
+    )
+    audit_verify_parser.add_argument(
+        "--db",
+        type=Path,
+        help="Path to the audit database (default: ~/.agentbench/audit.db)",
+    )
+    audit_verify_parser.set_defaults(func=cmd_audit_verify)
+
+    audit_export_parser = audit_sub.add_parser(
+        "export",
+        help="Export the audit trail as a durable, historical digest (like watch --digest)",
+    )
+    audit_export_parser.add_argument(
+        "--output", required=True, type=Path, help="Report path"
+    )
+    audit_export_parser.add_argument(
+        "--project", type=Path, help="Only include sessions working in this folder"
+    )
+    audit_export_parser.add_argument(
+        "--since", help="Only include events at/after this ISO8601 timestamp"
+    )
+    audit_export_parser.add_argument(
+        "--format",
+        choices=["md", "json"],
+        default="md",
+        help="Output format (default: md)",
+    )
+    audit_export_parser.add_argument(
+        "--db",
+        type=Path,
+        help="Path to the audit database (default: ~/.agentbench/audit.db)",
+    )
+    audit_export_parser.set_defaults(func=cmd_audit_export)
 
     run_parser = sub.add_parser("run", help="Run a single eval task against a trajectory")
     run_parser.add_argument("--task", required=True, type=Path, help="Path to task JSON")
@@ -473,199 +667,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
     app_parser.add_argument("--tasks", type=Path, default=Path("tasks"), help="Tasks directory")
     app_parser.set_defaults(func=cmd_app)
-
-    watch_parser = sub.add_parser(
-        "watch",
-        help="Auto-detect agent sessions on this machine and flag risky behavior",
-    )
-    watch_parser.add_argument(
-        "--project",
-        type=Path,
-        help="Only watch sessions working in this folder (default: all)",
-    )
-    watch_parser.add_argument(
-        "--once",
-        action="store_true",
-        help="Check recorded sessions and exit instead of watching live",
-    )
-    watch_parser.add_argument(
-        "--live-only",
-        action="store_true",
-        help="Skip recorded history; only alert on activity from now on",
-    )
-    watch_parser.add_argument(
-        "--interval",
-        type=float,
-        default=2.0,
-        help="Seconds between checks while watching (default: 2)",
-    )
-    watch_parser.add_argument(
-        "--fail-on-alert",
-        action="store_true",
-        help="Exit 1 if any critical alert was raised",
-    )
-    notify_group = watch_parser.add_mutually_exclusive_group()
-    notify_group.add_argument(
-        "--notify",
-        dest="notify",
-        action="store_true",
-        default=None,
-        help="Send a desktop notification when a poll finds new alerts "
-        "(default: on while watching live, if this machine supports it)",
-    )
-    notify_group.add_argument(
-        "--no-notify",
-        dest="notify",
-        action="store_false",
-        help="Never send desktop notifications",
-    )
-    watch_parser.add_argument(
-        "--digest",
-        type=Path,
-        help="Write a plain-English markdown report of all watched sessions to this path",
-    )
-    watch_parser.add_argument(
-        "--audit-db",
-        type=Path,
-        help="Path to the audit database (default: ~/.agentbench/audit.db)",
-    )
-    watch_parser.add_argument(
-        "--no-audit-log",
-        action="store_true",
-        help="Don't record alerts to the durable audit trail (default: recorded)",
-    )
-    watch_parser.set_defaults(func=cmd_watch)
-
-    audit_parser = sub.add_parser(
-        "audit",
-        help="Inspect the durable, tamper-evident audit trail",
-    )
-    audit_sub = audit_parser.add_subparsers(dest="audit_command", required=True)
-
-    audit_verify_parser = audit_sub.add_parser(
-        "verify",
-        help="Verify the audit trail's hash chain hasn't been tampered with",
-    )
-    audit_verify_parser.add_argument(
-        "--db",
-        type=Path,
-        help="Path to the audit database (default: ~/.agentbench/audit.db)",
-    )
-    audit_verify_parser.set_defaults(func=cmd_audit_verify)
-
-    audit_export_parser = audit_sub.add_parser(
-        "export",
-        help="Export the audit trail as a durable, historical digest (like watch --digest)",
-    )
-    audit_export_parser.add_argument(
-        "--output", required=True, type=Path, help="Report path"
-    )
-    audit_export_parser.add_argument(
-        "--project", type=Path, help="Only include sessions working in this folder"
-    )
-    audit_export_parser.add_argument(
-        "--since", help="Only include events at/after this ISO8601 timestamp"
-    )
-    audit_export_parser.add_argument(
-        "--format",
-        choices=["md", "json"],
-        default="md",
-        help="Output format (default: md)",
-    )
-    audit_export_parser.add_argument(
-        "--db",
-        type=Path,
-        help="Path to the audit database (default: ~/.agentbench/audit.db)",
-    )
-    audit_export_parser.set_defaults(func=cmd_audit_export)
-
-    incidents_parser = sub.add_parser(
-        "incidents",
-        help="Queryable backlog of alert incidents (open/acknowledged/resolved)",
-    )
-    incidents_sub = incidents_parser.add_subparsers(dest="incidents_command", required=True)
-
-    incidents_list_parser = incidents_sub.add_parser("list", help="List incidents")
-    incidents_list_parser.add_argument(
-        "--status",
-        choices=["open", "acknowledged", "resolved"],
-        help="Only show incidents in this status",
-    )
-    incidents_list_parser.add_argument(
-        "--severity",
-        choices=["critical", "warning"],
-        help="Only show incidents of this severity",
-    )
-    incidents_list_parser.add_argument(
-        "--project",
-        type=Path,
-        help="Only show incidents from sessions working in this folder",
-    )
-    incidents_list_parser.add_argument(
-        "--db",
-        type=Path,
-        help="Path to the audit database (default: ~/.agentbench/audit.db)",
-    )
-    incidents_list_parser.set_defaults(func=cmd_incidents_list)
-
-    incidents_show_parser = incidents_sub.add_parser("show", help="Show one incident in full")
-    incidents_show_parser.add_argument("incident_id")
-    incidents_show_parser.add_argument(
-        "--db",
-        type=Path,
-        help="Path to the audit database (default: ~/.agentbench/audit.db)",
-    )
-    incidents_show_parser.set_defaults(func=cmd_incidents_show)
-
-    incidents_ack_parser = incidents_sub.add_parser(
-        "ack", help="Acknowledge an incident (seen, not yet resolved)"
-    )
-    incidents_ack_parser.add_argument("incident_id")
-    incidents_ack_parser.add_argument("--note", help="Optional note to attach")
-    incidents_ack_parser.add_argument(
-        "--db",
-        type=Path,
-        help="Path to the audit database (default: ~/.agentbench/audit.db)",
-    )
-    incidents_ack_parser.set_defaults(func=cmd_incidents_ack)
-
-    incidents_resolve_parser = incidents_sub.add_parser("resolve", help="Resolve an incident")
-    incidents_resolve_parser.add_argument("incident_id")
-    incidents_resolve_parser.add_argument("--note", help="Optional note to attach")
-    incidents_resolve_parser.add_argument(
-        "--db",
-        type=Path,
-        help="Path to the audit database (default: ~/.agentbench/audit.db)",
-    )
-    incidents_resolve_parser.set_defaults(func=cmd_incidents_resolve)
-
-    diff_parser = sub.add_parser(
-        "diff",
-        help="Compare two trajectories and emit a git-like /diff report",
-    )
-    diff_parser.add_argument(
-        "--baseline",
-        required=True,
-        type=Path,
-        help="Baseline trajectory JSON (usually default branch)",
-    )
-    diff_parser.add_argument(
-        "--candidate",
-        required=True,
-        type=Path,
-        help="Candidate trajectory JSON (usually PR branch)",
-    )
-    diff_parser.add_argument(
-        "--output",
-        type=Path,
-        help="Optional report path (.md or .json)",
-    )
-    diff_parser.add_argument(
-        "--fail-on-change",
-        action="store_true",
-        help="Exit 1 if the candidate trajectory differs from baseline",
-    )
-    diff_parser.set_defaults(func=cmd_diff)
 
     return parser
 
