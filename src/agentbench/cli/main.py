@@ -7,7 +7,7 @@ import json
 import sys
 from pathlib import Path
 
-from agentbench.diff_report import build_diff_report
+from agentbench.accountability.diff import build_diff_report
 from agentbench.gate.evaluator import Evaluator
 
 
@@ -125,9 +125,9 @@ def cmd_watch(args: argparse.Namespace) -> int:
     import time
 
     from agentbench.adapters import ADAPTERS
-    from agentbench.watch.digest import render_digest
-    from agentbench.watch.notify import backend_available, notify, summarize_alerts
-    from agentbench.watch.watcher import SessionWatcher
+    from agentbench.accountability.digest import render_digest
+    from agentbench.accountability.notify import backend_available, notify, summarize_alerts
+    from agentbench.accountability.watcher import SessionWatcher
 
     # Alert copy uses em dashes; legacy Windows consoles default to cp1252.
     if hasattr(sys.stdout, "reconfigure"):

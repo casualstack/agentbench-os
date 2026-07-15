@@ -18,16 +18,16 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-from agentbench.diff_report import build_diff_report
+from agentbench.accountability.diff import build_diff_report
+from agentbench.accountability.digest import render_digest
+from agentbench.accountability.recorder import build_trajectory, steps_from_jsonl
+from agentbench.accountability.watcher import SessionWatcher
+from agentbench.adapters import ADAPTERS
+from agentbench.core.trajectory import Trajectory
 from agentbench.gate.evaluator import Evaluator
 from agentbench.gate.manifest import load_task_manifest
 from agentbench.matrix import MatrixConfig, MatrixRunner, detect_score_drift
 from agentbench.models.task import EvalTask, RunResult
-from agentbench.recorder import build_trajectory, steps_from_jsonl
-from agentbench.core.trajectory import Trajectory
-from agentbench.adapters import ADAPTERS
-from agentbench.watch.digest import render_digest
-from agentbench.watch.watcher import SessionWatcher
 
 STATIC_DIR = Path(__file__).parent / "static"
 HISTORY_LIMIT = 50

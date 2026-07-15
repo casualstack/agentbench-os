@@ -1,11 +1,12 @@
 """Claude Code adapter: one JSONL file per session, safe to byte-tail.
 
-The actual parsing lives in ``agentbench.watch.claude_code`` (kept in place
-since ``watcher.py`` and existing tests import those functions directly);
-this module just wraps that logic behind the ``SourceAdapter`` interface.
-The import is deferred to call time: ``adapters`` and ``watch`` are separate
-top-level packages and ``watch`` imports this module's package, so a
-module-level import here would be circular.
+The actual parsing lives in ``agentbench.accountability.session_parser``
+(kept in place since ``watcher.py`` and existing tests import those
+functions directly); this module just wraps that logic behind the
+``SourceAdapter`` interface. The import is deferred to call time: ``adapters``
+and ``accountability`` are separate top-level packages and ``accountability``
+imports this module's package, so a module-level import here would be
+circular.
 """
 
 from __future__ import annotations
@@ -48,16 +49,16 @@ class ClaudeCodeAdapter(SourceAdapter):
         return sources
 
     def parse_session(self, path: Path) -> dict[str, Any]:
-        from agentbench.watch.claude_code import parse_session
+        from agentbench.accountability.session_parser import parse_session
 
         return parse_session(path)
 
     def metadata_from_text(self, text: str) -> dict[str, Any]:
-        from agentbench.watch.claude_code import iter_records, session_metadata
+        from agentbench.accountability.session_parser import iter_records, session_metadata
 
         return session_metadata(iter_records(text))
 
     def steps_from_text(self, text: str) -> list[dict[str, Any]]:
-        from agentbench.watch.claude_code import steps_from_session_text
+        from agentbench.accountability.session_parser import steps_from_session_text
 
         return steps_from_session_text(text)

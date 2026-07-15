@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from agentbench.watch.digest import render_digest
+from agentbench.accountability.digest import render_digest
 
 
 def _alert(rule, severity, title, detail, step_index=0, path=None):

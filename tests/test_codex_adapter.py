@@ -6,9 +6,9 @@ import json
 from pathlib import Path
 
 from agentbench.adapters.codex import CodexAdapter
-from agentbench.watch.rules import check_steps
-from agentbench.watch.sources import discover_sessions
-from agentbench.watch.watcher import SessionWatcher
+from agentbench.accountability.rules import check_steps
+from agentbench.accountability.sources import discover_sessions
+from agentbench.accountability.watcher import SessionWatcher
 
 CWD = "C:\\work\\myrepo"
 SESSION_ID = "019f26ba-315b-7480-92d2-e7b346207df4"

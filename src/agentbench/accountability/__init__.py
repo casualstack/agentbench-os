@@ -1,10 +1,10 @@
 """Zero-config session watching: auto-detect agent sessions, raise plain-English alerts."""
 
+from agentbench.accountability.rules import Alert, check_steps
+from agentbench.accountability.session_parser import parse_session, steps_from_session_text
+from agentbench.accountability.sources import SessionSource, discover_sessions
+from agentbench.accountability.watcher import SessionWatcher, WatchEvent
 from agentbench.adapters import ADAPTERS, SourceAdapter
-from agentbench.watch.claude_code import parse_session, steps_from_session_text
-from agentbench.watch.rules import Alert, check_steps
-from agentbench.watch.sources import SessionSource, discover_sessions
-from agentbench.watch.watcher import SessionWatcher, WatchEvent
 
 __all__ = [
     "ADAPTERS",

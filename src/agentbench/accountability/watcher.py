@@ -18,10 +18,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from agentbench.accountability.rules import Alert, check_steps
+from agentbench.accountability.sources import DiscoveryReport, discover_sessions
 from agentbench.adapters import ADAPTERS
 from agentbench.adapters.base import SourceAdapter
-from agentbench.watch.rules import Alert, check_steps
-from agentbench.watch.sources import DiscoveryReport, discover_sessions
 
 _ADAPTERS_BY_NAME: dict[str, SourceAdapter] = {a.client_name: a for a in ADAPTERS}
 
@@ -284,6 +284,6 @@ class SessionWatcher:
 def _cwd_matches(cwd: str | None, project: str) -> bool:
     if cwd is None:
         return False
-    from agentbench.watch.rules import is_within
+    from agentbench.accountability.rules import is_within
 
     return is_within(cwd, project) or is_within(project, cwd)

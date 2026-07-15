@@ -1,7 +1,7 @@
 """Discover agent session logs on this machine.
 
 Discovery is delegated to a registry of ``SourceAdapter`` implementations
-(see ``watch.adapters``) — Claude Code, Cursor, Codex, Antigravity. Each
+(see ``agentbench.adapters``) — Claude Code, Cursor, Codex, Antigravity. Each
 adapter says whether its agent is present and, if so, hands back the
 sessions it found. A misbehaving adapter never takes discovery down with
 it: detection/enumeration failures are caught and that adapter is skipped.

@@ -11,10 +11,10 @@ import pytest
 from agentbench.adapters import ADAPTERS
 from agentbench.adapters.antigravity import AntigravityAdapter
 from agentbench.adapters.cursor import CursorAdapter
-from agentbench.watch.claude_code import parse_session, steps_from_session_text
-from agentbench.watch.rules import check_steps, is_test_file, is_within
-from agentbench.watch.sources import discover_sessions
-from agentbench.watch.watcher import SessionWatcher
+from agentbench.accountability.session_parser import parse_session, steps_from_session_text
+from agentbench.accountability.rules import check_steps, is_test_file, is_within
+from agentbench.accountability.sources import discover_sessions
+from agentbench.accountability.watcher import SessionWatcher
 
 CWD = "C:\\work\\myrepo"
 
@@ -743,7 +743,7 @@ class TestSessionWatcherDiscoveryCaching:
     def test_poll_then_detected_agents_scans_once(self, tmp_path, monkeypatch):
         _write_session(tmp_path, "s1", [_session_line("Bash", {"command": "ls"})])
 
-        import agentbench.watch.watcher as watcher_module
+        import agentbench.accountability.watcher as watcher_module
 
         calls = {"count": 0}
         original = watcher_module.discover_sessions
