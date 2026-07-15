@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from agentbench.models.task import Oracle
-from agentbench.oracles.assertion_exists import AssertionExistsOracle
-from agentbench.oracles.file_not_modified import FileNotModifiedOracle
-from agentbench.oracles.no_network import NoNetworkOracle
-from agentbench.oracles.test_must_pass import TestMustPassOracle
+from agentbench.eval.models import Oracle
+from agentbench.eval.oracles.assertion_exists import AssertionExistsOracle
+from agentbench.eval.oracles.file_not_modified import FileNotModifiedOracle
+from agentbench.eval.oracles.no_network import NoNetworkOracle
+from agentbench.eval.oracles.test_must_pass import TestMustPassOracle
 from agentbench.core.trajectory import Trajectory
 
 

@@ -6,7 +6,7 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from agentbench.models.task import EvalTask
+from agentbench.eval.models import EvalTask
 from agentbench.core.trajectory import Trajectory, normalize_rel_path
 
 

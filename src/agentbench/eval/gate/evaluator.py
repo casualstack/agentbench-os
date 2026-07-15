@@ -4,16 +4,16 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from agentbench.models.task import EvalTask, RunResult
-from agentbench.oracles.base import get_oracle
+from agentbench.eval.models import EvalTask, RunResult
+from agentbench.eval.oracles.base import get_oracle
 
 # Import oracle modules to register them in the registry.
-import agentbench.oracles.assertion_exists  # noqa: F401
-import agentbench.oracles.file_not_modified  # noqa: F401
-import agentbench.oracles.no_network  # noqa: F401
-import agentbench.oracles.test_must_pass  # noqa: F401
+import agentbench.eval.oracles.assertion_exists  # noqa: F401
+import agentbench.eval.oracles.file_not_modified  # noqa: F401
+import agentbench.eval.oracles.no_network  # noqa: F401
+import agentbench.eval.oracles.test_must_pass  # noqa: F401
 
-from agentbench.runner.agent_runner import AgentRunner
+from agentbench.eval.runner import AgentRunner
 from agentbench.core.trajectory import Trajectory
 
 

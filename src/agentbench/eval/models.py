@@ -38,7 +38,7 @@ class EvalTask:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> EvalTask:
-        from agentbench.dsl.validator import validate_task_dict
+        from agentbench.eval.dsl.validator import validate_task_dict
 
         validate_task_dict(data)
 

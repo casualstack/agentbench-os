@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from agentbench.models.task import Oracle, OracleResult
+from agentbench.eval.models import Oracle, OracleResult
 
 if TYPE_CHECKING:
     from agentbench.core.trajectory import Trajectory

@@ -24,10 +24,10 @@ from agentbench.accountability.recorder import build_trajectory, steps_from_json
 from agentbench.accountability.watcher import SessionWatcher
 from agentbench.adapters import ADAPTERS
 from agentbench.core.trajectory import Trajectory
-from agentbench.gate.evaluator import Evaluator
-from agentbench.gate.manifest import load_task_manifest
-from agentbench.matrix import MatrixConfig, MatrixRunner, detect_score_drift
-from agentbench.models.task import EvalTask, RunResult
+from agentbench.eval.gate.evaluator import Evaluator
+from agentbench.eval.gate.manifest import load_task_manifest
+from agentbench.eval.matrix import MatrixConfig, MatrixRunner, detect_score_drift
+from agentbench.eval.models import EvalTask, RunResult
 
 STATIC_DIR = Path(__file__).parent / "static"
 HISTORY_LIMIT = 50

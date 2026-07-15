@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from agentbench.cli.main import main
-from agentbench.matrix import MatrixResult, MatrixRunner
+from agentbench.eval.matrix import MatrixResult, MatrixRunner
 
 
 @pytest.fixture

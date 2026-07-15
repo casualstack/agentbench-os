@@ -6,8 +6,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-from agentbench.models.task import Oracle, OracleResult
-from agentbench.oracles.base import OracleCheck, register_oracle
+from agentbench.eval.models import Oracle, OracleResult
+from agentbench.eval.oracles.base import OracleCheck, register_oracle
 from agentbench.core.trajectory import Trajectory
 
 

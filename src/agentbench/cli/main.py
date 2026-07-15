@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 from agentbench.accountability.diff import build_diff_report
-from agentbench.gate.evaluator import Evaluator
+from agentbench.eval.gate.evaluator import Evaluator
 
 
 def cmd_run(args: argparse.Namespace) -> int:
@@ -22,7 +22,7 @@ def cmd_gate(args: argparse.Namespace) -> int:
     evaluator = Evaluator()
     task_files = None
     if args.manifest is not None:
-        from agentbench.gate.manifest import load_task_manifest
+        from agentbench.eval.gate.manifest import load_task_manifest
 
         task_files = load_task_manifest(args.manifest)
 
@@ -50,7 +50,7 @@ def cmd_gate(args: argparse.Namespace) -> int:
 
 
 def cmd_matrix(args: argparse.Namespace) -> int:
-    from agentbench.matrix import MatrixConfig, MatrixRunner, detect_score_drift
+    from agentbench.eval.matrix import MatrixConfig, MatrixRunner, detect_score_drift
 
     config = MatrixConfig.from_file(args.config)
     if args.tasks is not None:

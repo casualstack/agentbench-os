@@ -9,8 +9,8 @@ from typing import Any
 import yaml
 from pydantic import BaseModel, Field, field_validator
 
-from agentbench.gate.evaluator import Evaluator
-from agentbench.models.task import RunResult
+from agentbench.eval.gate.evaluator import Evaluator
+from agentbench.eval.models import RunResult
 
 
 class MatrixCell(BaseModel):
@@ -91,7 +91,7 @@ class MatrixConfig(BaseModel):
             return [self.tasks_dir / name for name in self.task_files]
 
         if self.task_subset is not None:
-            from agentbench.gate.manifest import load_task_manifest
+            from agentbench.eval.gate.manifest import load_task_manifest
 
             names = load_task_manifest(self.task_subset)
             return [self.tasks_dir / name for name in names]

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from agentbench.dsl.validator import ValidationError, validate_oracle, validate_task_dict
+from agentbench.eval.dsl.validator import ValidationError, validate_oracle, validate_task_dict
 
 
 def test_validate_task_dict_accepts_minimal_valid_task():

@@ -1,6 +1,6 @@
 """Eval DSL — parse and validate task / trajectory JSON."""
 
-from agentbench.dsl.validator import (
+from agentbench.eval.dsl.validator import (
     KNOWN_ORACLE_TYPES,
     ValidationError,
     validate_oracle,
