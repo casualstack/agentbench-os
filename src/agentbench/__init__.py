@@ -6,4 +6,4 @@ block risky tool calls before they run. The same engine gates agent runs on
 pull requests with deterministic property checks.
 """
 
-__version__ = "0.3.0"
+__version__ = "2.0.0"
