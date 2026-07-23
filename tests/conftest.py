@@ -22,20 +22,20 @@ def tasks_dir() -> Path:
 
 @pytest.fixture
 def trajectory_pass(fixtures_dir: Path):
-    from agentbench.runner.trajectory import Trajectory
+    from agentbench.core.trajectory import Trajectory
 
     return Trajectory.from_file(fixtures_dir / "trajectory_pass.json")
 
 
 @pytest.fixture
 def trajectory_regression(fixtures_dir: Path):
-    from agentbench.runner.trajectory import Trajectory
+    from agentbench.core.trajectory import Trajectory
 
     return Trajectory.from_file(fixtures_dir / "trajectory_regression.json")
 
 
 @pytest.fixture
 def trajectory_network(fixtures_dir: Path):
-    from agentbench.runner.trajectory import Trajectory
+    from agentbench.core.trajectory import Trajectory
 
     return Trajectory.from_file(fixtures_dir / "trajectory_network.json")

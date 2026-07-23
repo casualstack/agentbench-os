@@ -1,6 +1,6 @@
 # Eval DSL
 
-Tasks and trajectories are JSON documents. The DSL is intentionally minimal — no custom parser language — so tasks are diffable, reviewable in PRs, and easy to generate.
+*Eval pillar.* Tasks and trajectories are JSON documents. The DSL is intentionally minimal — no custom parser language — so tasks are diffable, reviewable in PRs, and easy to generate.
 
 ## Task schema
 

@@ -6,16 +6,21 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
-from agentbench.diff_report import build_diff_report
-from agentbench.matrix import MatrixRunner, detect_score_drift
-from agentbench.gate.evaluator import Evaluator
+from rich.console import Console
+from rich.table import Table
+
+from agentbench.accountability.diff import build_diff_report
+from agentbench.eval.gate.evaluator import Evaluator
+
+console = Console()
 
 
 def cmd_run(args: argparse.Namespace) -> int:
     evaluator = Evaluator()
     result = evaluator.evaluate_files(args.task, args.trajectory)
-    print(result.summary())
+    console.print(result.summary())
     return 0 if result.passed else 1
 
 
@@ -23,7 +28,7 @@ def cmd_gate(args: argparse.Namespace) -> int:
     evaluator = Evaluator()
     task_files = None
     if args.manifest is not None:
-        from agentbench.gate.manifest import load_task_manifest
+        from agentbench.eval.gate.manifest import load_task_manifest
 
         task_files = load_task_manifest(args.manifest)
 
@@ -34,24 +39,24 @@ def cmd_gate(args: argparse.Namespace) -> int:
     )
 
     if not results:
-        print(f"No task JSON files found in {args.tasks}")
+        console.print(f"[bold red]No task JSON files found in {args.tasks}[/bold red]")
         return 1
 
     failed = 0
     for result in results:
-        print(result.summary())
-        print()
+        console.print(result.summary())
+        console.print()
         if not result.passed:
             failed += 1
 
     total = len(results)
     passed = total - failed
-    print(f"Gate summary: {passed}/{total} tasks passed")
+    console.print(f"[bold]Gate summary:[/bold] {passed}/{total} tasks passed")
     return 0 if failed == 0 else 1
 
 
 def cmd_matrix(args: argparse.Namespace) -> int:
-    from agentbench.matrix import MatrixConfig, MatrixRunner, detect_score_drift
+    from agentbench.eval.matrix import MatrixConfig, MatrixRunner, detect_score_drift
 
     config = MatrixConfig.from_file(args.config)
     if args.tasks is not None:
@@ -59,7 +64,7 @@ def cmd_matrix(args: argparse.Namespace) -> int:
 
     runner = MatrixRunner()
     result = runner.run(config)
-    print(result.summary())
+    console.print(result.summary())
 
     drift_report = None
     if config.baseline is not None:
@@ -68,20 +73,20 @@ def cmd_matrix(args: argparse.Namespace) -> int:
             config.baseline,
             threshold=config.drift_threshold,
         )
-        print()
-        print(drift_report.summary())
+        console.print()
+        console.print(drift_report.summary())
 
     if args.output:
         output = str(args.output)
         if output.lower() == "markdown":
-            print()
-            print(result.to_table(format="markdown"))
+            console.print()
+            console.print(result.to_table(format="markdown"))
         else:
             payload = result.model_dump(mode="json")
             if drift_report is not None:
                 payload["drift"] = drift_report.model_dump(mode="json")
             Path(args.output).write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-            print(f"\nWrote matrix results to {args.output}")
+            console.print(f"\n[green]Wrote matrix results to {args.output}[/green]")
 
     if drift_report is not None and drift_report.drift_detected and args.fail_on_drift:
         return 1
@@ -117,18 +122,20 @@ def _print_watch_events(events: list) -> int:
                 critical += 1
             where = event.cwd or str(event.path)
             mark = _SEVERITY_MARK.get(alert.severity, "[?]")
-            print(f"{mark} {alert.title} — {event.agent} session {event.session_id[:8]} in {where}")
-            print(f"    {alert.detail}")
+            color = "red" if alert.severity == "critical" else "yellow"
+            console.print(f"[{color}]{mark} {alert.title} — {event.agent} session {event.session_id[:8]} in {where}[/{color}]")
+            console.print(f"    [{color}]{alert.detail}[/{color}]")
     return critical
 
 
 def cmd_watch(args: argparse.Namespace) -> int:
     import time
 
-    from agentbench.watch.adapters import ADAPTERS
-    from agentbench.watch.digest import render_digest
-    from agentbench.watch.notify import backend_available, notify, summarize_alerts
-    from agentbench.watch.watcher import SessionWatcher
+    from agentbench.accountability.audit import AuditStore, record_from_alert
+    from agentbench.accountability.digest import render_digest
+    from agentbench.accountability.notify import backend_available, notify, summarize_alerts
+    from agentbench.accountability.watcher import SessionWatcher
+    from agentbench.adapters import ADAPTERS
 
     # Alert copy uses em dashes; legacy Windows consoles default to cp1252.
     if hasattr(sys.stdout, "reconfigure"):
@@ -141,7 +148,7 @@ def cmd_watch(args: argparse.Namespace) -> int:
 
     detected = watcher.detected_agents()
     if not detected:
-        print(
+        console.print(
             "No AI coding agents found on this machine yet.\n"
             "AgentBench looks for Claude Code (~/.claude/projects) and Cursor "
             "sessions, and detects Codex and Antigravity."
@@ -158,13 +165,17 @@ def cmd_watch(args: argparse.Namespace) -> int:
             names.append(f"{adapter.display_name} (detected — parsing coming soon)")
         else:
             names.append(adapter.display_name)
-    print(f"Found: {', '.join(names)}")
+    console.print(f"Found: {', '.join(names)}")
 
     # Default: notify during the continuous loop when a backend is available;
     # --once is the CI/scripting path and stays quiet unless asked otherwise.
     notifications_enabled = args.notify
     if notifications_enabled is None:
         notifications_enabled = not args.once and backend_available()
+
+    # Recorded by default: every alert is appended to the durable, hash-
+    # chained audit trail unless the caller explicitly opts out.
+    audit_store = None if args.no_audit_log else AuditStore(args.audit_db)
 
     def _maybe_notify(poll_events: list) -> None:
         if not notifications_enabled:
@@ -173,40 +184,268 @@ def cmd_watch(args: argparse.Namespace) -> int:
         if summary is not None:
             notify(*summary)
 
+    def _maybe_log_audit(poll_events: list) -> None:
+        # Reviewer amendment: only real alerts are chained -- no
+        # heartbeat/session_seen rows, so events with no alerts append
+        # nothing here.
+        if audit_store is None:
+            return
+        for event in poll_events:
+            if not event.alerts:
+                continue
+            source_size = source_mtime = None
+            try:
+                stat = event.path.stat()
+                source_size, source_mtime = stat.st_size, stat.st_mtime
+            except OSError:
+                pass
+            for alert in event.alerts:
+                record = record_from_alert(
+                    agent=event.agent,
+                    session_id=event.session_id,
+                    cwd=event.cwd,
+                    model=event.model,
+                    alert=alert,
+                    source_path=str(event.path),
+                    source_size=source_size,
+                    source_mtime=source_mtime,
+                )
+                try:
+                    audit_store.append(record)
+                except Exception as exc:  # never let a write failure kill watch
+                    console.print(f"[bold red][!] Failed to write audit log entry: {exc}[/bold red]", style="red")
+
     def _maybe_write_digest() -> None:
         if args.digest:
             args.digest.write_text(render_digest(watcher.sessions()), encoding="utf-8")
 
-    events = watcher.poll()  # first poll covers existing session history
-    total_sessions = len(watcher.sessions())
-    scope = f" for {args.project}" if args.project else ""
-    print(f"Checked {total_sessions} recorded session(s){scope}.")
-    critical = _print_watch_events(events)
-    if not any(e.alerts for e in events):
-        print("No problems found in recorded sessions.")
-    _maybe_notify(events)
+    try:
+        events = watcher.poll()  # first poll covers existing session history
+        total_sessions = len(watcher.sessions())
+        scope = f" for {args.project}" if args.project else ""
+        console.print(f"Checked {total_sessions} recorded session(s){scope}.")
+        critical = _print_watch_events(events)
+        if not any(e.alerts for e in events):
+            console.print("[green]No problems found in recorded sessions.[/green]")
+        _maybe_notify(events)
+        _maybe_log_audit(events)
 
-    if args.once:
+        if args.once:
+            _maybe_write_digest()
+            return 1 if critical and args.fail_on_alert else 0
+
+        console.print("\n[bold cyan]Watching for new agent activity...[/bold cyan] (Ctrl+C to stop)")
+        try:
+            while True:
+                time.sleep(args.interval)
+                poll_events = watcher.poll()
+                critical += _print_watch_events(poll_events)
+                _maybe_notify(poll_events)
+                _maybe_log_audit(poll_events)
+        except KeyboardInterrupt:
+            console.print("\n[yellow]Stopped watching.[/yellow]")
         _maybe_write_digest()
         return 1 if critical and args.fail_on_alert else 0
+    finally:
+        if audit_store is not None:
+            audit_store.close()
 
-    print("\nWatching for new agent activity... (Ctrl+C to stop)")
+
+def cmd_audit_verify(args: argparse.Namespace) -> int:
+    from agentbench.accountability.audit import AuditStore
+
+    store = AuditStore(args.db)
     try:
-        while True:
-            time.sleep(args.interval)
-            poll_events = watcher.poll()
-            critical += _print_watch_events(poll_events)
-            _maybe_notify(poll_events)
-    except KeyboardInterrupt:
-        print("\nStopped watching.")
-    _maybe_write_digest()
-    return 1 if critical and args.fail_on_alert else 0
+        broken = store.verify()
+    finally:
+        store.close()
+
+    if broken is None:
+        console.print(f"[bold green]OK: audit trail intact[/bold green] ({store.path})")
+        return 0
+
+    console.print(f"[bold red]BROKEN: audit trail tampered starting at event id={broken}[/bold red] ({store.path})")
+    return 1
+
+
+def cmd_audit_export(args: argparse.Namespace) -> int:
+    from datetime import datetime, timezone
+
+    from agentbench.accountability.audit import IncidentStore, sessions_from_incidents
+    from agentbench.accountability.digest import render_digest
+
+    with IncidentStore(args.db) as store:
+        incidents = store.list(
+            project=str(args.project) if args.project else None,
+            since=args.since,
+        )
+
+    if args.format == "json":
+        payload = {
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "incident_count": len(incidents),
+            "incidents": [incident.to_dict() for incident in incidents],
+        }
+        text = json.dumps(payload, indent=2) + "\n"
+    else:
+        text = render_digest(sessions_from_incidents(incidents))
+
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(text, encoding="utf-8")
+    console.print(f"[green]Wrote audit export to {args.output}[/green]")
+    return 0
+
+
+_INCIDENT_SEVERITY_MARK = {"critical": "[!]", "warning": "[~]"}
+
+
+def _format_incident_line(incident: Any) -> str:
+    mark = _INCIDENT_SEVERITY_MARK.get(incident.severity, "[?]")
+    where = incident.cwd or "unknown location"
+    return (
+        f"{mark} [{incident.status}] {incident.incident_id}  {incident.title} — "
+        f"{incident.agent} session {incident.session_id[:8]} in {where}"
+    )
+
+
+def cmd_incidents_list(args: argparse.Namespace) -> int:
+    from agentbench.accountability.audit import IncidentStore
+
+    with IncidentStore(args.db) as store:
+        incidents = store.list(
+            status=args.status,
+            severity=args.severity,
+            project=str(args.project) if args.project else None,
+        )
+
+    if not incidents:
+        console.print("No incidents found.")
+        return 0
+
+    table = Table(title="Incidents", title_style="bold magenta")
+    table.add_column("ID", style="cyan", no_wrap=True)
+    table.add_column("Status", style="blue")
+    table.add_column("Severity")
+    table.add_column("Title")
+    table.add_column("Agent / Session")
+    table.add_column("Location", style="dim")
+
+    for incident in incidents:
+        mark = _INCIDENT_SEVERITY_MARK.get(incident.severity, "[?]")
+        color = "red" if incident.severity == "critical" else "yellow"
+        where = incident.cwd or "unknown location"
+        table.add_row(
+            str(incident.incident_id),
+            incident.status,
+            f"[{color}]{mark} {incident.severity}[/]",
+            incident.title,
+            f"{incident.agent} {incident.session_id[:8]}",
+            where,
+        )
+
+    console.print(table)
+    console.print(f"\n{len(incidents)} incident(s).")
+    return 0
+
+
+def cmd_incidents_show(args: argparse.Namespace) -> int:
+    from agentbench.accountability.audit import IncidentStore
+
+    with IncidentStore(args.db) as store:
+        incident = store.get(args.incident_id)
+
+    if incident is None:
+        console.print(f"[bold red]No incident found with id {args.incident_id}[/bold red]")
+        return 1
+
+    console.print(f"[bold]Incident {incident.incident_id}[/bold] [[blue]{incident.status}[/blue]]")
+    color = "red" if incident.severity == "critical" else "yellow"
+    console.print(f"  [bold]Rule:[/bold] {incident.rule} ([{color}]{incident.severity}[/{color}])")
+    console.print(f"  [bold]Title:[/bold] {incident.title}")
+    console.print(f"  [bold]Detail:[/bold] {incident.detail}")
+    console.print(f"  [bold]Agent:[/bold] {incident.agent}  [bold]Session:[/bold] {incident.session_id}")
+    console.print(f"  [bold]Project:[/bold] {incident.cwd or 'unknown'}")
+    console.print(f"  [bold]Path:[/bold] {incident.path or '-'}")
+    console.print(f"  [bold]Observed:[/bold] {incident.ts}")
+    if incident.note:
+        console.print(f"  [bold]Note:[/bold] {incident.note}")
+    if incident.resolved_at:
+        console.print(f"  [bold]Resolved:[/bold] {incident.resolved_at} by {incident.resolved_by}")
+    return 0
+
+
+def cmd_incidents_ack(args: argparse.Namespace) -> int:
+    from agentbench.accountability.audit import IncidentStore
+
+    with IncidentStore(args.db) as store:
+        incident = store.acknowledge(args.incident_id, note=args.note)
+
+    if incident is None:
+        console.print(f"[bold red]No incident found with id {args.incident_id}[/bold red]")
+        return 1
+    console.print(f"[green]Acknowledged {incident.incident_id}.[/green]")
+    return 0
+
+
+def cmd_incidents_resolve(args: argparse.Namespace) -> int:
+    from agentbench.accountability.audit import IncidentStore
+
+    with IncidentStore(args.db) as store:
+        incident = store.resolve(args.incident_id, note=args.note)
+
+    if incident is None:
+        console.print(f"[bold red]No incident found with id {args.incident_id}[/bold red]")
+        return 1
+    console.print(f"[green]Resolved {incident.incident_id}.[/green]")
+    return 0
+
+
+def cmd_init(args: argparse.Namespace) -> int:
+    from agentbench.accountability.install import (
+        HOOK_COMMAND,
+        install_hook,
+        scaffold_policy,
+    )
+
+    root = Path(args.project)
+    if not root.is_dir():
+        console.print(f"[bold red]No such directory: {root}[/bold red]", style="red")
+        return 1
+
+    hook_changed = install_hook(root)
+    policy_created = scaffold_policy(root)
+
+    settings_path = root / ".claude" / "settings.json"
+    policy_path = root / ".agentbench" / "policy.yml"
+
+    if hook_changed:
+        console.print(f"[green]Registered '{HOOK_COMMAND}' as a Claude Code PreToolUse hook in {settings_path}[/green]")
+    else:
+        console.print(f"Hook already registered in {settings_path} (no change)")
+    if policy_created:
+        console.print(f"[green]Wrote a starter policy to {policy_path}[/green]")
+    else:
+        console.print(f"Kept your existing policy at {policy_path}")
+
+    console.print(
+        "\n[bold]Enforcement is active for new Claude Code sessions in this folder.[/bold]\n"
+        f"  - Tune what gets blocked/asked in {policy_path}\n"
+        "  - Delete that file to go back to observe-only\n"
+        f"  - To uninstall: remove the '{HOOK_COMMAND}' entry from {settings_path}"
+    )
+    return 0
+
+
+def cmd_hook(args: argparse.Namespace) -> int:
+    from agentbench.accountability.hook import main as hook_main
+
+    return hook_main()
 
 
 def cmd_diff(args: argparse.Namespace) -> int:
     report = build_diff_report(args.baseline, args.candidate)
     markdown = report.to_markdown()
-    print(markdown, end="")
+    console.print(markdown, end="")
 
     if args.output:
         output = Path(args.output)
@@ -215,7 +454,7 @@ def cmd_diff(args: argparse.Namespace) -> int:
             output.write_text(json.dumps(report.to_dict(), indent=2) + "\n", encoding="utf-8")
         else:
             output.write_text(markdown, encoding="utf-8")
-        print(f"\nWrote /diff report to {output}")
+        console.print(f"\n[green]Wrote /diff report to {output}[/green]")
 
     if args.fail_on_change and report.changed:
         return 1
@@ -225,15 +464,222 @@ def cmd_diff(args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="agentbench",
-        description="AgentBench OS — continuous agent reliability CI",
+        description="AgentBench OS — security & accountability for AI coding agents, "
+        "with the eval/benchmark suite to prove your gates work",
     )
     sub = parser.add_subparsers(dest="command", required=True)
+
+    watch_parser = sub.add_parser(
+        "watch",
+        help="Auto-detect agent sessions on this machine and flag risky behavior",
+    )
+    watch_parser.add_argument(
+        "--project",
+        type=Path,
+        help="Only watch sessions working in this folder (default: all)",
+    )
+    watch_parser.add_argument(
+        "--once",
+        action="store_true",
+        help="Check recorded sessions and exit instead of watching live",
+    )
+    watch_parser.add_argument(
+        "--live-only",
+        action="store_true",
+        help="Skip recorded history; only alert on activity from now on",
+    )
+    watch_parser.add_argument(
+        "--interval",
+        type=float,
+        default=2.0,
+        help="Seconds between checks while watching (default: 2)",
+    )
+    watch_parser.add_argument(
+        "--fail-on-alert",
+        action="store_true",
+        help="Exit 1 if any critical alert was raised",
+    )
+    notify_group = watch_parser.add_mutually_exclusive_group()
+    notify_group.add_argument(
+        "--notify",
+        dest="notify",
+        action="store_true",
+        default=None,
+        help="Send a desktop notification when a poll finds new alerts "
+        "(default: on while watching live, if this machine supports it)",
+    )
+    notify_group.add_argument(
+        "--no-notify",
+        dest="notify",
+        action="store_false",
+        help="Never send desktop notifications",
+    )
+    watch_parser.add_argument(
+        "--digest",
+        type=Path,
+        help="Write a plain-English markdown report of all watched sessions to this path",
+    )
+    watch_parser.add_argument(
+        "--audit-db",
+        type=Path,
+        help="Path to the audit database (default: ~/.agentbench/audit.db)",
+    )
+    watch_parser.add_argument(
+        "--no-audit-log",
+        action="store_true",
+        help="Don't record alerts to the durable audit trail (default: recorded)",
+    )
+    watch_parser.set_defaults(func=cmd_watch)
+
+    init_parser = sub.add_parser(
+        "init",
+        help="Turn on real-time enforcement for Claude Code in this project",
+    )
+    init_parser.add_argument(
+        "--project",
+        type=Path,
+        default=Path("."),
+        help="Project folder to install the hook + policy into (default: .)",
+    )
+    init_parser.set_defaults(func=cmd_init)
+
+    diff_parser = sub.add_parser(
+        "diff",
+        help="Compare two trajectories and emit a git-like /diff report",
+    )
+    diff_parser.add_argument(
+        "--baseline",
+        required=True,
+        type=Path,
+        help="Baseline trajectory JSON (usually default branch)",
+    )
+    diff_parser.add_argument(
+        "--candidate",
+        required=True,
+        type=Path,
+        help="Candidate trajectory JSON (usually PR branch)",
+    )
+    diff_parser.add_argument(
+        "--output",
+        type=Path,
+        help="Optional report path (.md or .json)",
+    )
+    diff_parser.add_argument(
+        "--fail-on-change",
+        action="store_true",
+        help="Exit 1 if the candidate trajectory differs from baseline",
+    )
+    diff_parser.set_defaults(func=cmd_diff)
+
+    incidents_parser = sub.add_parser(
+        "incidents",
+        help="Queryable backlog of alert incidents (open/acknowledged/resolved)",
+    )
+    incidents_sub = incidents_parser.add_subparsers(dest="incidents_command", required=True)
+
+    incidents_list_parser = incidents_sub.add_parser("list", help="List incidents")
+    incidents_list_parser.add_argument(
+        "--status",
+        choices=["open", "acknowledged", "resolved"],
+        help="Only show incidents in this status",
+    )
+    incidents_list_parser.add_argument(
+        "--severity",
+        choices=["critical", "warning"],
+        help="Only show incidents of this severity",
+    )
+    incidents_list_parser.add_argument(
+        "--project",
+        type=Path,
+        help="Only show incidents from sessions working in this folder",
+    )
+    incidents_list_parser.add_argument(
+        "--db",
+        type=Path,
+        help="Path to the audit database (default: ~/.agentbench/audit.db)",
+    )
+    incidents_list_parser.set_defaults(func=cmd_incidents_list)
+
+    incidents_show_parser = incidents_sub.add_parser("show", help="Show one incident in full")
+    incidents_show_parser.add_argument("incident_id")
+    incidents_show_parser.add_argument(
+        "--db",
+        type=Path,
+        help="Path to the audit database (default: ~/.agentbench/audit.db)",
+    )
+    incidents_show_parser.set_defaults(func=cmd_incidents_show)
+
+    incidents_ack_parser = incidents_sub.add_parser(
+        "ack", help="Acknowledge an incident (seen, not yet resolved)"
+    )
+    incidents_ack_parser.add_argument("incident_id")
+    incidents_ack_parser.add_argument("--note", help="Optional note to attach")
+    incidents_ack_parser.add_argument(
+        "--db",
+        type=Path,
+        help="Path to the audit database (default: ~/.agentbench/audit.db)",
+    )
+    incidents_ack_parser.set_defaults(func=cmd_incidents_ack)
+
+    incidents_resolve_parser = incidents_sub.add_parser("resolve", help="Resolve an incident")
+    incidents_resolve_parser.add_argument("incident_id")
+    incidents_resolve_parser.add_argument("--note", help="Optional note to attach")
+    incidents_resolve_parser.add_argument(
+        "--db",
+        type=Path,
+        help="Path to the audit database (default: ~/.agentbench/audit.db)",
+    )
+    incidents_resolve_parser.set_defaults(func=cmd_incidents_resolve)
+
+    audit_parser = sub.add_parser(
+        "audit",
+        help="Inspect the durable, tamper-evident audit trail",
+    )
+    audit_sub = audit_parser.add_subparsers(dest="audit_command", required=True)
+
+    audit_verify_parser = audit_sub.add_parser(
+        "verify",
+        help="Verify the audit trail's hash chain hasn't been tampered with",
+    )
+    audit_verify_parser.add_argument(
+        "--db",
+        type=Path,
+        help="Path to the audit database (default: ~/.agentbench/audit.db)",
+    )
+    audit_verify_parser.set_defaults(func=cmd_audit_verify)
+
+    audit_export_parser = audit_sub.add_parser(
+        "export",
+        help="Export the audit trail as a durable, historical digest (like watch --digest)",
+    )
+    audit_export_parser.add_argument(
+        "--output", required=True, type=Path, help="Report path"
+    )
+    audit_export_parser.add_argument(
+        "--project", type=Path, help="Only include sessions working in this folder"
+    )
+    audit_export_parser.add_argument(
+        "--since", help="Only include events at/after this ISO8601 timestamp"
+    )
+    audit_export_parser.add_argument(
+        "--format",
+        choices=["md", "json"],
+        default="md",
+        help="Output format (default: md)",
+    )
+    audit_export_parser.add_argument(
+        "--db",
+        type=Path,
+        help="Path to the audit database (default: ~/.agentbench/audit.db)",
+    )
+    audit_export_parser.set_defaults(func=cmd_audit_export)
 
     run_parser = sub.add_parser("run", help="Run a single eval task against a trajectory")
     run_parser.add_argument("--task", required=True, type=Path, help="Path to task JSON")
     run_parser.add_argument(
         "--trajectory", required=True, type=Path, help="Path to trajectory JSON"
     )
+    run_parser.add_argument("--sandbox", action="store_true", help="Run eval in a Docker sandbox")
     run_parser.set_defaults(func=cmd_run)
 
     gate_parser = sub.add_parser("gate", help="Run all tasks in a directory as CI gate")
@@ -246,6 +692,7 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         help="JSON manifest listing task_files compatible with the trajectory",
     )
+    gate_parser.add_argument("--sandbox", action="store_true", help="Run evals in a Docker sandbox")
     gate_parser.set_defaults(func=cmd_gate)
 
     matrix_parser = sub.add_parser(
@@ -304,85 +751,12 @@ def build_parser() -> argparse.ArgumentParser:
     app_parser.add_argument("--tasks", type=Path, default=Path("tasks"), help="Tasks directory")
     app_parser.set_defaults(func=cmd_app)
 
-    watch_parser = sub.add_parser(
-        "watch",
-        help="Auto-detect agent sessions on this machine and flag risky behavior",
+    # Plumbing: invoked by Claude Code as a PreToolUse hook, not by humans.
+    hook_parser = sub.add_parser(
+        "hook",
+        help=argparse.SUPPRESS,
     )
-    watch_parser.add_argument(
-        "--project",
-        type=Path,
-        help="Only watch sessions working in this folder (default: all)",
-    )
-    watch_parser.add_argument(
-        "--once",
-        action="store_true",
-        help="Check recorded sessions and exit instead of watching live",
-    )
-    watch_parser.add_argument(
-        "--live-only",
-        action="store_true",
-        help="Skip recorded history; only alert on activity from now on",
-    )
-    watch_parser.add_argument(
-        "--interval",
-        type=float,
-        default=2.0,
-        help="Seconds between checks while watching (default: 2)",
-    )
-    watch_parser.add_argument(
-        "--fail-on-alert",
-        action="store_true",
-        help="Exit 1 if any critical alert was raised",
-    )
-    notify_group = watch_parser.add_mutually_exclusive_group()
-    notify_group.add_argument(
-        "--notify",
-        dest="notify",
-        action="store_true",
-        default=None,
-        help="Send a desktop notification when a poll finds new alerts "
-        "(default: on while watching live, if this machine supports it)",
-    )
-    notify_group.add_argument(
-        "--no-notify",
-        dest="notify",
-        action="store_false",
-        help="Never send desktop notifications",
-    )
-    watch_parser.add_argument(
-        "--digest",
-        type=Path,
-        help="Write a plain-English markdown report of all watched sessions to this path",
-    )
-    watch_parser.set_defaults(func=cmd_watch)
-
-    diff_parser = sub.add_parser(
-        "diff",
-        help="Compare two trajectories and emit a git-like /diff report",
-    )
-    diff_parser.add_argument(
-        "--baseline",
-        required=True,
-        type=Path,
-        help="Baseline trajectory JSON (usually default branch)",
-    )
-    diff_parser.add_argument(
-        "--candidate",
-        required=True,
-        type=Path,
-        help="Candidate trajectory JSON (usually PR branch)",
-    )
-    diff_parser.add_argument(
-        "--output",
-        type=Path,
-        help="Optional report path (.md or .json)",
-    )
-    diff_parser.add_argument(
-        "--fail-on-change",
-        action="store_true",
-        help="Exit 1 if the candidate trajectory differs from baseline",
-    )
-    diff_parser.set_defaults(func=cmd_diff)
+    hook_parser.set_defaults(func=cmd_hook)
 
     return parser
 

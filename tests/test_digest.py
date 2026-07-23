@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from agentbench.watch.digest import render_digest
+from agentbench.accountability.digest import render_digest
 
 
 def _alert(rule, severity, title, detail, step_index=0, path=None):
@@ -71,6 +71,23 @@ def test_multiple_sessions_are_grouped_separately():
     assert "s1abcdef" in out
     assert "s2ghijkl" in out
     assert "No issues found in this session." in out
+
+
+def test_client_label_is_derived_from_adapters_registry():
+    # digest.py derives display labels from agentbench.adapters.ADAPTERS
+    # rather than hardcoding them, so newly-parsed clients (like Codex) label
+    # correctly without a digest.py change.
+    session = _session("s1abcdef", [])
+    session["agent"] = "codex"
+    out = render_digest([session])
+    assert "## Codex CLI session" in out
+
+
+def test_unknown_agent_falls_back_to_raw_name():
+    session = _session("s1abcdef", [])
+    session["agent"] = "some-future-client"
+    out = render_digest([session])
+    assert "## some-future-client session" in out
 
 
 def test_output_is_written_for_a_non_expert():

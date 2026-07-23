@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 try:
-    from agentbench.recorder import build_trajectory, steps_from_jsonl
+    from agentbench.accountability.recorder import build_trajectory, steps_from_jsonl
 except ImportError:  # pragma: no cover
     sys.exit("agentbench is not installed — run: pip install -e .")
 

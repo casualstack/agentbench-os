@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from agentbench.watch.notify import backend_available, notify, summarize_alerts
+from agentbench.accountability.notify import backend_available, notify, summarize_alerts
 
 
 @dataclass
@@ -31,12 +31,12 @@ class _Event:
 
 
 def test_module_imports_cleanly():
-    import agentbench.watch.notify  # noqa: F401
+    import agentbench.accountability.notify  # noqa: F401
 
 
 def test_notify_returns_false_with_no_backend(monkeypatch):
-    monkeypatch.setattr("agentbench.watch.notify._notify_plyer", lambda t, m: False)
-    monkeypatch.setattr("agentbench.watch.notify._notify_shell", lambda t, m: False)
+    monkeypatch.setattr("agentbench.accountability.notify._notify_plyer", lambda t, m: False)
+    monkeypatch.setattr("agentbench.accountability.notify._notify_shell", lambda t, m: False)
     assert notify("title", "message") is False
 
 
@@ -44,20 +44,20 @@ def test_notify_swallows_backend_exceptions(monkeypatch):
     def _boom(title, message):
         raise RuntimeError("no display available")
 
-    monkeypatch.setattr("agentbench.watch.notify._notify_plyer", _boom)
-    monkeypatch.setattr("agentbench.watch.notify._notify_shell", _boom)
+    monkeypatch.setattr("agentbench.accountability.notify._notify_plyer", _boom)
+    monkeypatch.setattr("agentbench.accountability.notify._notify_shell", _boom)
     assert notify("title", "message") is False
 
 
 def test_notify_returns_true_when_a_backend_delivers(monkeypatch):
-    monkeypatch.setattr("agentbench.watch.notify._notify_plyer", lambda t, m: False)
-    monkeypatch.setattr("agentbench.watch.notify._notify_shell", lambda t, m: True)
+    monkeypatch.setattr("agentbench.accountability.notify._notify_plyer", lambda t, m: False)
+    monkeypatch.setattr("agentbench.accountability.notify._notify_shell", lambda t, m: True)
     assert notify("title", "message") is True
 
 
 def test_backend_available_never_raises(monkeypatch):
     monkeypatch.setattr(
-        "agentbench.watch.notify.platform.system",
+        "agentbench.accountability.notify.platform.system",
         lambda: (_ for _ in ()).throw(RuntimeError("boom")),
     )
     assert backend_available() is False
@@ -78,12 +78,12 @@ def test_notify_shell_dispatches_by_platform_without_raising(monkeypatch):
 
         return _Result()
 
-    monkeypatch.setattr("agentbench.watch.notify.subprocess.run", fake_run)
-    monkeypatch.setattr("agentbench.watch.notify.shutil.which", lambda name: "/usr/bin/" + name)
+    monkeypatch.setattr("agentbench.accountability.notify.subprocess.run", fake_run)
+    monkeypatch.setattr("agentbench.accountability.notify.shutil.which", lambda name: "/usr/bin/" + name)
 
     for system in ("Darwin", "Linux", "Windows", "SomeOtherOS"):
-        monkeypatch.setattr("agentbench.watch.notify.platform.system", lambda system=system: system)
-        from agentbench.watch.notify import _notify_shell
+        monkeypatch.setattr("agentbench.accountability.notify.platform.system", lambda system=system: system)
+        from agentbench.accountability.notify import _notify_shell
 
         result = _notify_shell("title", "message")
         assert result in (True, False)

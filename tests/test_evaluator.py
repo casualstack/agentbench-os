@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from agentbench.gate.evaluator import Evaluator
-from agentbench.models.task import EvalTask
+from agentbench.eval.gate.evaluator import Evaluator
+from agentbench.eval.models import EvalTask
 
 
 def test_evaluator_passes_good_trajectory(tasks_dir: Path, trajectory_pass):

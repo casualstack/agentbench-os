@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from agentbench.runner.trajectory import Trajectory
+from agentbench.core.trajectory import Trajectory
 
 
 def test_file_edits_extracts_write_operations(trajectory_pass):

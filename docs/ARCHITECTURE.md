@@ -1,10 +1,48 @@
 # Architecture
 
-AgentBench OS evaluates **recorded agent trajectories** against **property-based oracles**. It is not a live agent runner or trace dashboard — it is a CI gate that answers: *did this agent run violate our constraints?*
+AgentBench OS has two co-equal pillars over a shared trajectory + oracle
+core: **accountability** (watch AI coding agents on this machine, keep a
+tamper-evident record of what they did) and **eval/benchmarking**
+(replay a recorded agent run against property-based oracles and fail the
+gate on regressions). Nothing was deleted to build accountability — the
+eval engine that shipped first is restructured underneath, not replaced.
+
+```
+src/agentbench/
+├── core/            # shared: Trajectory, TrajectoryStep, tool-name vocabulary
+├── adapters/         # shared: pluggable per-client session ingestion
+├── accountability/    # pillar 1 — watch, audit trail, incidents, policy seam
+├── eval/               # pillar 2 — oracles, gate, matrix (restructured, not rebuilt)
+├── cli/                  # single entrypoint, subcommands grouped by pillar in --help
+└── ui/                    # local dashboard over both pillars
+```
+
+Both pillars depend on `core` and `adapters`; neither pillar depends on
+the other. `core` holds the trajectory step vocabulary
+(`Trajectory`/`TrajectoryStep`, the write/run tool-name sets) that both
+sides need to agree on without importing from each other. `adapters`
+holds the per-client session ingestion (Claude Code, Cursor, Codex CLI,
+Antigravity) that both pillars consume the same way.
 
 ## Data flow
 
+Two parallel paths share the same normalized step vocabulary
+(`write_file`/`str_replace`/`run_command`, produced by `core`/`adapters`)
+but never share state:
+
 ```
+Accountability (live, observation-only)
+┌──────────────┐   ┌───────────────┐   ┌────────────┐   ┌───────────────┐
+│ Session logs │──▶│ SourceAdapter │──▶│ SessionWatcher│─▶│  Alert/rules  │
+│ (on disk)    │   │  (adapters/)  │   │ (accountability)│ │ (accountability)│
+└──────────────┘   └───────────────┘   └────────────┘   └───────┬───────┘
+                                                                  ▼
+                                                   ┌───────────────────────┐
+                                                   │  AuditStore (chained)  │
+                                                   │  + IncidentStore        │
+                                                   └───────────────────────┘
+
+Eval (on demand, replay-based)
 ┌─────────────┐     ┌──────────────────┐     ┌─────────────────┐
 │  Task JSON  │────▶│   AgentRunner    │────▶│ Temp workspace  │
 │ (eval DSL)  │     │ setup + replay   │     │ (post-agent)    │
@@ -24,61 +62,97 @@ AgentBench OS evaluates **recorded agent trajectories** against **property-based
 
 ## Components
 
-### Eval DSL (`agentbench.dsl`)
+### Core (`agentbench.core`)
 
-Validates task and trajectory JSON before evaluation. Catches schema errors early (unknown oracle types, missing params).
+Shared internals, not owned by either pillar:
 
-### Models (`agentbench.models`)
+- **Trajectory / TrajectoryStep** (`core.trajectory`) — parses tool-call
+  steps and exposes `file_edits()`, `commands()`,
+  `find_network_violations()`. Consumed by eval oracles via `AgentRunner`
+  and by accountability's `diff`/`recorder`.
+- **`WRITE_TOOLS` / `RUN_TOOLS` + `step_path()` / `step_command()`**
+  (`core.steps`) — the tool-name vocabulary and args key-precedence both
+  pillars need to agree on (`accountability.rules` and `core.trajectory`
+  both import from here instead of each keeping its own copy).
+- **`validate_trajectory_dict`** — lives here (not in the eval-only DSL
+  package) because trajectory validation is shared, not eval-specific;
+  `eval.dsl.validator` re-imports it for callers reaching through the
+  eval package.
 
-- **EvalTask** — prompt, initial workspace files, oracle list
-- **Oracle** — typed check with params
-- **RunResult** — aggregate pass/fail + per-oracle messages
+### Adapters (`agentbench.adapters`)
 
-### Runner (`agentbench.runner`)
+Pluggable per-client session ingestion, promoted out of the
+accountability package so eval could depend on it too if it ever needs
+to. One `SourceAdapter` subclass per client (Claude Code, Cursor, Codex
+CLI, Antigravity), registered in `adapters.ADAPTERS`. Each adapter knows
+whether its client is present (`detect`), where sessions live
+(`discover`), and how to turn one session into the normalized step
+vocabulary (`parse_session`). `supports_tail` says whether sessions are
+append-only JSONL safe to byte-tail vs. needing a full re-parse each
+poll; `supports_interception` is a Phase 2 seam (default `False`
+everywhere in Phase 1 — see [ACCOUNTABILITY.md](ACCOUNTABILITY.md)).
 
-**AgentRunner** (MVP):
+### Accountability (`agentbench.accountability`)
 
-1. Materialize `task.workspace` into a temp directory
-2. Replay `trajectory.file_edits()` onto that directory
-3. Return final workspace path for oracle checks
+- **SessionWatcher** (`accountability.watcher`) — discovers sessions via
+  `adapters`, incrementally evaluates new steps, returns `WatchEvent`s.
+  Storage-agnostic by design: it knows nothing about SQLite or the audit
+  trail.
+- **Rules** (`accountability.rules`) — 14 zero-config regex/in-memory
+  checks over normalized steps, producing `Alert`s.
+- **AuditStore / IncidentStore** (`accountability.audit`) — durable,
+  hash-chained event log plus a mutable incident backlog on top of it.
+  See [ACCOUNTABILITY.md](ACCOUNTABILITY.md) for the tamper-evidence
+  scope (what it does and doesn't prove).
+- **Policy seam** (`accountability.policy`) — `Decision`/`PolicyContext`/
+  `PolicyVerdict`/`PolicyEngine` types for Phase 2; `ObservePolicyEngine`
+  is the only Phase 1 implementation and always `ALLOW`s.
+- **Digest / notify** — plain-English markdown reports and best-effort
+  OS-native desktop notifications.
 
-Future: swap trajectory replay for live agent invocation (Cursor SDK, Claude Code API) while keeping the same oracle interface.
+### Eval (`agentbench.eval`)
 
-**Trajectory** parses tool-call steps and exposes:
+Restructured from the original top-level `dsl`/`models`/`oracles`/`gate`/
+`runner`/`benchmark` packages into one `eval/` package — same behavior,
+new location:
 
-- `file_edits()` — write/edit/str_replace operations
-- `commands()` — shell invocations
-- `find_network_violations()` — pattern scan for offline constraints
-
-### Oracles (`agentbench.oracles`)
-
-Pluggable checks registered via `@register_oracle`. Each oracle receives:
-
-- Oracle config from task JSON
-- Final workspace path
-- Full trajectory (for behavioral checks)
-- Initial workspace dict (for diff / protected-file checks)
-
-All oracles must pass for `RunResult.passed == True`.
-
-### Gate (`agentbench.gate`)
-
-**Evaluator** wires runner + oracles. Supports single-task (`evaluate_files`) and directory batch (`evaluate_directory`) for CI.
+- **`eval.dsl`** — task/oracle JSON validation (trajectory validation
+  moved to `core`, see above).
+- **`eval.models`** — `EvalTask`, `Oracle`, `RunResult`.
+- **`eval.oracles`** — pluggable checks registered via `@register_oracle`.
+  Each oracle receives the oracle config, final workspace path, full
+  trajectory, and the initial workspace dict. All oracles must pass for
+  `RunResult.passed == True`.
+- **`eval.runner`** — `AgentRunner` (MVP): materializes `task.workspace`
+  into a temp directory, replays `trajectory.file_edits()` onto it,
+  returns the final workspace path for oracle checks. Future: swap
+  trajectory replay for live agent invocation while keeping the same
+  oracle interface.
+- **`eval.gate`** — `Evaluator` wires runner + oracles; single-task
+  (`evaluate_files`) and directory batch (`evaluate_directory`) for CI.
+- **`eval.matrix`** — model × prompt benchmark runner and score drift
+  detection.
 
 ### CLI (`agentbench.cli`)
 
-- `agentbench run --task T --trajectory J` — single eval, exit 0/1
-- `agentbench gate --tasks DIR --trajectory J` — batch gate
-- `agentbench watch` — local session accountability monitoring
-- `agentbench diff --baseline A --candidate B` — trajectory-to-trajectory diff report
+Single entrypoint; `--help` groups accountability verbs first, eval verbs
+second, dashboard last:
+
+- `agentbench watch` / `diff` / `incidents` / `audit` — accountability
+- `agentbench run` / `gate` / `matrix` — eval
+- `agentbench ui` / `app` — dashboard over both pillars
 
 ### GitHub Action (`action/`)
 
-Composite action: install package, run `agentbench gate`. Workflow stub at `.github/workflows/agentbench-gate.yml`.
+Composite action for the eval gate: install package, run `agentbench
+gate`. Workflow stub at `.github/workflows/agentbench-gate.yml`. (The
+accountability pillar's CI story is `agentbench audit verify` in a
+pipeline step, not this action.)
 
 ### Client (`agentbench.ui`)
 
-Local dashboard (desktop app and browser mode) over loopback-only JSON API:
+Local dashboard (desktop app and browser mode) over loopback-only JSON
+API, covering both pillars:
 
 - Live watch feed (`/api/watch`) for ongoing session guardrails
 - Gate runner (`/api/gate`) for trajectory + task evaluation
@@ -90,16 +164,28 @@ Local dashboard (desktop app and browser mode) over loopback-only JSON API:
 
 ## Design principles
 
-1. **No API keys for MVP** — trajectories are pre-recorded JSON fixtures
-2. **Oracle-first** — checks encode *properties* (tests pass, file untouched), not single golden outputs
-3. **PR-native** — exit codes drive CI; human-readable summaries for logs
-4. **Extensible registry** — new oracle = new class + `@register_oracle`
+1. **Accountability and eval are co-equal, not eval-plus-a-feature** —
+   shared core, independent pillars, neither imports the other.
+2. **No API keys for the eval MVP** — trajectories are pre-recorded JSON
+   fixtures.
+3. **Oracle-first** — eval checks encode *properties* (tests pass, file
+   untouched), not single golden outputs.
+4. **Zero-config accountability** — watch mode needs no task JSON, no
+   setup; the 14 default rules apply out of the box.
+5. **Observation before enforcement** — Phase 1 ships accountability
+   only; the policy/interception seams exist so Phase 2 doesn't require
+   re-touching call sites, but nothing blocks an agent's action yet.
+6. **PR-native** — exit codes drive CI; human-readable summaries for
+   logs, on both pillars.
+7. **Extensible registries** — new oracle = new class + `@register_oracle`;
+   new watched client = new `SourceAdapter` subclass.
 
 ## Extension points
 
 | Layer | Next step |
 |-------|-----------|
-| Runner | Live agent execution + trajectory recording |
+| Accountability | Real Phase 2 `PolicyEngine` reading `.agentbench/policy.yml`; Claude Code `PreToolUse` hook adapter |
+| Eval runner | Live agent execution + trajectory recording |
 | Oracles | `diff_max_lines`, `no_new_dependencies`, `coverage_min` |
 | DSL | YAML tasks, oracle composition (`all_of` / `any_of`) |
 | Gate | Statistical pass over N runs, flake detection |

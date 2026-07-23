@@ -8,14 +8,13 @@ from pathlib import Path
 
 import pytest
 
-from agentbench.watch.adapters import ADAPTERS
-from agentbench.watch.adapters.antigravity import AntigravityAdapter
-from agentbench.watch.adapters.codex import CodexAdapter
-from agentbench.watch.adapters.cursor import CursorAdapter
-from agentbench.watch.claude_code import parse_session, steps_from_session_text
-from agentbench.watch.rules import check_steps, is_test_file, is_within
-from agentbench.watch.sources import discover_sessions
-from agentbench.watch.watcher import SessionWatcher
+from agentbench.adapters import ADAPTERS
+from agentbench.adapters.antigravity import AntigravityAdapter
+from agentbench.adapters.cursor import CursorAdapter
+from agentbench.accountability.session_parser import parse_session, steps_from_session_text
+from agentbench.accountability.rules import check_steps, is_test_file, is_within
+from agentbench.accountability.sources import discover_sessions
+from agentbench.accountability.watcher import SessionWatcher
 
 CWD = "C:\\work\\myrepo"
 
@@ -186,6 +185,20 @@ class TestAdapterRegistry:
         names = {a.client_name for a in ADAPTERS}
         assert names == {"claude-code", "cursor", "codex", "antigravity"}
 
+    def test_only_claude_code_supports_interception(self):
+        # Phase 2: Claude Code can be intercepted before a tool runs via the
+        # PreToolUse hook `agentbench init` installs. The other three remain
+        # observation-only -- they only read the log after the client wrote it.
+        by_name = {a.client_name: a for a in ADAPTERS}
+        assert by_name["claude-code"].supports_interception is True
+        for name in ("cursor", "codex", "antigravity"):
+            assert by_name[name].supports_interception is False, name
+
+    def test_supports_interception_defaults_false_on_the_base_class(self):
+        from agentbench.adapters.base import SourceAdapter
+
+        assert SourceAdapter.supports_interception is False
+
     def test_discovery_survives_a_broken_adapter(self, tmp_path, monkeypatch):
         _write_session(tmp_path, "s1", [_session_line("Bash", {"command": "ls"})])
 
@@ -250,21 +263,14 @@ class TestCursorAdapter:
         assert len(cursor_sessions) == 1
 
 
-# -- Codex / Antigravity stubs -------------------------------------------------
+# -- Antigravity stub ----------------------------------------------------------
+# Codex CLI graduated to a real adapter — see tests/test_codex_adapter.py.
 
 
 class TestStubAdapters:
-    def test_codex_detects_but_does_not_parse(self, tmp_path):
-        (tmp_path / ".codex").mkdir()
-        adapter = CodexAdapter()
-        assert adapter.detect(tmp_path)
-        assert adapter.discover(tmp_path) == []
-        report = discover_sessions(home=tmp_path)
-        assert "codex" in report.detected_agents
-        assert not any(s.agent == "codex" for s in report.sessions)
-
     def test_antigravity_detects_but_does_not_parse(self, tmp_path):
-        (tmp_path / ".antigravity").mkdir()
+        brain_path = tmp_path / ".gemini" / "antigravity" / "brain"
+        brain_path.mkdir(parents=True)
         adapter = AntigravityAdapter()
         assert adapter.detect(tmp_path)
         assert adapter.discover(tmp_path) == []
@@ -273,7 +279,7 @@ class TestStubAdapters:
         assert not any(s.agent == "antigravity" for s in report.sessions)
 
     def test_absent_stub_agents_are_not_detected(self, tmp_path):
-        adapter = CodexAdapter()
+        adapter = AntigravityAdapter()
         assert not adapter.detect(tmp_path)
 
 
@@ -746,6 +752,35 @@ class TestSessionWatcher:
         assert events[0].session_id == "s2"
 
 
+class TestSessionWatcherDiscoveryCaching:
+    """poll() and detected_agents() must share one discovery scan per poll."""
+
+    def test_poll_then_detected_agents_scans_once(self, tmp_path, monkeypatch):
+        _write_session(tmp_path, "s1", [_session_line("Bash", {"command": "ls"})])
+
+        import agentbench.accountability.watcher as watcher_module
+
+        calls = {"count": 0}
+        original = watcher_module.discover_sessions
+
+        def _counting(*args, **kwargs):
+            calls["count"] += 1
+            return original(*args, **kwargs)
+
+        monkeypatch.setattr(watcher_module, "discover_sessions", _counting)
+
+        watcher = SessionWatcher(home=tmp_path)
+        watcher.poll()
+        watcher.detected_agents()
+
+        assert calls["count"] == 1
+
+    def test_detected_agents_before_any_poll_still_scans(self, tmp_path, monkeypatch):
+        _write_session(tmp_path, "s1", [_session_line("Bash", {"command": "ls"})])
+        watcher = SessionWatcher(home=tmp_path)
+        assert watcher.detected_agents() == ["claude-code"]
+
+
 class TestSessionWatcherCursor:
     """Non-tailable sources (Cursor) are registered and parsed once per poll."""
 
@@ -813,3 +848,111 @@ class TestWatchCli:
         exit_code = main(["watch", "--once"])
         assert exit_code == 1
         assert "No AI coding agents found" in capsys.readouterr().out
+
+    def test_watch_once_logs_alerts_to_audit_trail_by_default(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        _write_session(
+            tmp_path,
+            "s1",
+            [
+                _session_line(
+                    "Edit",
+                    {
+                        "file_path": "tests/test_app.py",
+                        "old_string": "assert x == 1",
+                        "new_string": "pass",
+                    },
+                )
+            ],
+        )
+        monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+
+        from agentbench.accountability.audit import AuditStore
+        from agentbench.cli.main import main
+
+        exit_code = main(["watch", "--once"])
+        capsys.readouterr()
+        assert exit_code == 0
+
+        with AuditStore(tmp_path / ".agentbench" / "audit.db") as store:
+            events = list(store.iter_events())
+            assert len(events) == 1
+            assert events[0]["rule"] == "deleted_assertion"
+            assert store.verify() is None
+
+    def test_watch_once_respects_audit_db_override(self, tmp_path, monkeypatch, capsys):
+        _write_session(
+            tmp_path,
+            "s1",
+            [
+                _session_line(
+                    "Edit",
+                    {
+                        "file_path": "tests/test_app.py",
+                        "old_string": "assert x == 1",
+                        "new_string": "pass",
+                    },
+                )
+            ],
+        )
+        monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+        custom_db = tmp_path / "custom-audit.db"
+
+        from agentbench.accountability.audit import AuditStore
+        from agentbench.cli.main import main
+
+        exit_code = main(["watch", "--once", "--audit-db", str(custom_db)])
+        capsys.readouterr()
+        assert exit_code == 0
+        assert custom_db.exists()
+        assert not (tmp_path / ".agentbench" / "audit.db").exists()
+
+        with AuditStore(custom_db) as store:
+            assert len(list(store.iter_events())) == 1
+
+    def test_watch_once_no_audit_log_skips_the_audit_trail(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        _write_session(
+            tmp_path,
+            "s1",
+            [
+                _session_line(
+                    "Edit",
+                    {
+                        "file_path": "tests/test_app.py",
+                        "old_string": "assert x == 1",
+                        "new_string": "pass",
+                    },
+                )
+            ],
+        )
+        monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+
+        from agentbench.cli.main import main
+
+        exit_code = main(["watch", "--once", "--no-audit-log"])
+        capsys.readouterr()
+        assert exit_code == 0
+        assert not (tmp_path / ".agentbench" / "audit.db").exists()
+
+    def test_watch_once_clean_session_writes_no_audit_rows(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        # Reviewer amendment: only real alerts are chained -- a session
+        # with no alerts must not create a heartbeat/session_seen row.
+        _write_session(
+            tmp_path, "s1", [_session_line("Bash", {"command": "pytest -q"})]
+        )
+        monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+
+        from agentbench.accountability.audit import AuditStore
+        from agentbench.cli.main import main
+
+        exit_code = main(["watch", "--once"])
+        capsys.readouterr()
+        assert exit_code == 0
+
+        with AuditStore(tmp_path / ".agentbench" / "audit.db") as store:
+            assert list(store.iter_events()) == []

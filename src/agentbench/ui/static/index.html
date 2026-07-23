@@ -7,133 +7,230 @@
 <link rel="icon" type="image/x-icon" href="/static/agentbench-logo.ico">
 <style>
   :root {
-    --bg: #0d1117; --panel: #161b22; --border: #30363d;
-    --text: #e6edf3; --muted: #8b949e; --accent: #58a6ff;
-    --pass: #3fb950; --fail: #f85149; --warn: #d29922;
+    --bg-color: #0d1117;
+    --panel-bg: rgba(22, 27, 34, 0.75);
+    --panel-border: #30363d;
+    --text-main: #e6edf3;
+    --text-muted: #8b949e;
+    --accent-blue: #2f81f7;
+    --pass: #3fb950;
+    --fail: #f85149;
+    --warn: #d29922;
+    --glass-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
   }
+
   * { box-sizing: border-box; }
+  
   body {
-    margin: 0; background: var(--bg); color: var(--text);
-    font: 14px/1.5 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    margin: 0; 
+    background: var(--bg-color); 
+    color: var(--text-main);
+    font: 14px/1.6 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    min-height: 100vh;
   }
+
+  .mono, .tid, pre, code, .step-args, .alert-path {
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace !important;
+  }
+
   header {
     display: flex; align-items: center; gap: 12px;
-    padding: 14px 24px; border-bottom: 1px solid var(--border);
+    padding: 16px 32px; 
+    background: rgba(13, 17, 23, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--panel-border);
+    position: sticky; top: 0; z-index: 100;
   }
-  .brand-logo {
-    height: 32px;
-    width: auto;
-    display: block;
-  }
-  header .sub { color: var(--muted); font-size: 13px; }
-  .rootbar { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+
+  .brand-logo { height: 32px; width: auto; display: block; }
+  header .sub { color: var(--text-muted); font-size: 13px; letter-spacing: 0.5px; }
+  
+  .rootbar { margin-left: auto; display: flex; gap: 8px; align-items: center; }
   .rootbar input {
-    width: 340px; background: var(--bg); color: var(--muted);
-    border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px;
+    width: 340px; background: rgba(1, 4, 9, 0.5); color: var(--text-main);
+    border: 1px solid var(--panel-border); border-radius: 6px; padding: 8px 12px;
     font-family: ui-monospace, Consolas, monospace; font-size: 12px;
+    transition: all 0.2s ease;
   }
-  nav { display: flex; gap: 4px; padding: 12px 24px 0; border-bottom: 1px solid var(--border); }
+  .rootbar input:focus {
+    outline: none; border-color: var(--accent-blue); box-shadow: 0 0 0 3px rgba(47, 129, 247, 0.3);
+  }
+
+  nav { 
+    display: flex; gap: 8px; padding: 16px 32px 0; 
+    border-bottom: 1px solid var(--panel-border);
+    background: linear-gradient(to bottom, transparent, rgba(22, 27, 34, 0.3));
+    overflow-x: auto;
+  }
   nav button {
-    background: none; border: 1px solid transparent; border-bottom: none;
-    color: var(--muted); padding: 8px 16px; cursor: pointer;
-    border-radius: 6px 6px 0 0; font-size: 14px;
+    background: rgba(22, 27, 34, 0.4); border: 1px solid transparent; border-bottom: none;
+    color: var(--text-muted); padding: 10px 20px; cursor: pointer;
+    border-radius: 8px 8px 0 0; font-size: 14px; font-weight: 500;
+    transition: all 0.2s ease;
+    position: relative;
+    overflow: hidden;
   }
+  nav button:hover { color: var(--text-main); background: rgba(47, 129, 247, 0.1); }
   nav button.active {
-    color: var(--text); background: var(--panel);
-    border-color: var(--border);
+    color: var(--text-main); background: var(--panel-bg);
+    border-color: var(--panel-border);
+    border-bottom: 1px solid var(--bg-color);
+    margin-bottom: -1px;
   }
-  main { padding: 20px 24px; max-width: 1150px; }
-  section { display: none; }
+  nav button.active::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: var(--accent-blue);
+  }
+
+  main { padding: 32px; max-width: 1200px; margin: 0 auto; }
+  section { display: none; animation: fadeIn 0.3s ease-out; }
   section.active { display: block; }
+  
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
   .panel {
-    background: var(--panel); border: 1px solid var(--border);
-    border-radius: 8px; padding: 16px; margin-bottom: 16px;
+    background: var(--panel-bg); 
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--panel-border);
+    border-radius: 12px; padding: 24px; margin-bottom: 24px;
+    box-shadow: var(--glass-shadow);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
   }
-  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
-  label { display: block; color: var(--muted); font-size: 12px; margin: 10px 0 4px; }
+  .panel:hover {
+    border-color: #484f58;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.3);
+  }
+
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
+  label { display: block; color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; margin: 16px 0 8px; font-weight: 600; }
+  
   input[type=text], select, textarea {
-    width: 100%; background: var(--bg); color: var(--text);
-    border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px;
-    font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 13px;
+    width: 100%; background: rgba(1, 4, 9, 0.5); color: var(--text-main);
+    border: 1px solid var(--panel-border); border-radius: 6px; padding: 10px 14px;
+    font-size: 13px; transition: all 0.2s ease;
+  }
+  input[type=text]:focus, select:focus, textarea:focus {
+    outline: none; border-color: var(--accent-blue); box-shadow: 0 0 0 3px rgba(47, 129, 247, 0.3);
   }
   textarea { min-height: 140px; resize: vertical; }
-  button.primary {
-    background: var(--accent); color: #0d1117; border: none; border-radius: 6px;
-    padding: 9px 18px; font-weight: 600; cursor: pointer; margin-top: 12px;
-  }
-  button.primary:disabled { opacity: .5; cursor: wait; }
-  button.ghost {
-    background: none; border: 1px solid var(--border); color: var(--text);
-    border-radius: 6px; padding: 8px 14px; cursor: pointer; margin-top: 12px;
-  }
-  .banner {
-    padding: 12px 16px; border-radius: 8px; font-weight: 600; margin-bottom: 16px;
-    border: 1px solid var(--border); display: flex; gap: 16px; align-items: baseline;
-  }
-  .banner.pass { border-color: var(--pass); color: var(--pass); }
-  .banner.fail { border-color: var(--fail); color: var(--fail); }
-  .banner .when { color: var(--muted); font-weight: 400; font-size: 12px; margin-left: auto; }
-  .task-card { border: 1px solid var(--border); border-radius: 8px; margin-bottom: 10px; overflow: hidden; }
-  .task-head {
-    display: flex; align-items: center; gap: 10px; padding: 10px 14px;
-    background: var(--panel);
-  }
-  .status { font-weight: 700; font-size: 12px; min-width: 44px; }
-  .status.pass { color: var(--pass); } .status.fail { color: var(--fail); }
-  .mono, .tid { font-family: ui-monospace, Consolas, monospace; }
-  .oracle-row { padding: 8px 14px 8px 40px; border-top: 1px solid var(--border); font-size: 13px; }
-  .oracle-row summary { cursor: pointer; list-style: none; display: flex; gap: 10px; align-items: baseline; }
-  .oracle-row summary::-webkit-details-marker { display: none; }
-  .oracle-row .otype { font-family: ui-monospace, Consolas, monospace; color: var(--accent); }
-  .oracle-row .msg { color: var(--muted); }
-  .oracle-row.fail .msg { color: var(--fail); }
-  .oracle-row pre { margin: 8px 0 4px; }
-  .chip {
-    display: inline-block; border: 1px solid var(--border); border-radius: 10px;
-    padding: 1px 9px; font-size: 12px; color: var(--muted); margin: 2px 3px 2px 0;
-    font-family: ui-monospace, Consolas, monospace;
-  }
-  .chip.link { cursor: pointer; color: var(--accent); border-color: var(--accent); }
-  .err { color: var(--fail); margin-top: 10px; white-space: pre-wrap; }
-  pre.out {
-    background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
-    padding: 12px; overflow: auto; font-size: 12px; max-height: 420px; white-space: pre-wrap;
-  }
-  .muted { color: var(--muted); }
-  table { width: 100%; border-collapse: collapse; }
-  td, th { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: top; }
-  th { color: var(--muted); font-weight: 500; }
-  tr.clickable { cursor: pointer; }
-  tr.clickable:hover td { background: rgba(88,166,255,.06); }
-  .rate { font-family: ui-monospace, Consolas, monospace; }
-  .rate.good { color: var(--pass); } .rate.bad { color: var(--fail); } .rate.mid { color: var(--warn); }
-  .spark { display: block; margin: 4px 0 12px; }
-  .step-args { color: var(--muted); font-family: ui-monospace, Consolas, monospace; font-size: 12px;
-    white-space: pre-wrap; word-break: break-all; max-height: 100px; overflow: auto; }
-  .badge { font-size: 11px; border-radius: 4px; padding: 1px 6px; font-weight: 600; }
-  .badge.edit { background: rgba(88,166,255,.15); color: var(--accent); }
-  .badge.cmd { background: rgba(210,153,34,.15); color: var(--warn); }
 
-  .session-group { margin-bottom: 18px; }
+  button.primary {
+    background: var(--accent-blue);
+    color: #ffffff; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px;
+    padding: 10px 24px; font-weight: 600; cursor: pointer; margin-top: 16px;
+    font-size: 13px;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 12px rgba(47, 129, 247, 0.2);
+  }
+  button.primary:hover {
+    transform: translateY(-1px); box-shadow: 0 6px 16px rgba(47, 129, 247, 0.3); background: #388bfd;
+  }
+  button.primary:disabled { opacity: .5; cursor: wait; transform: none; box-shadow: none; }
+  
+  button.ghost {
+    background: transparent; border: 1px solid var(--panel-border); color: var(--text-main);
+    border-radius: 6px; padding: 8px 16px; cursor: pointer; margin-top: 12px;
+    font-weight: 500; transition: all 0.2s ease; font-size: 13px;
+  }
+  button.ghost:hover {
+    background: rgba(139, 148, 158, 0.1); border-color: #8b949e;
+  }
+
+  .banner {
+    padding: 16px 24px; border-radius: 8px; font-weight: 600; margin-bottom: 24px;
+    background: rgba(1, 4, 9, 0.5); border: 1px solid var(--panel-border); border-left: 4px solid; display: flex; gap: 16px; align-items: center;
+    backdrop-filter: blur(8px);
+  }
+  .banner.pass { border-left-color: var(--pass); color: var(--pass); }
+  .banner.fail { border-left-color: var(--fail); color: var(--fail); }
+  .banner .when { color: var(--text-muted); font-weight: 400; font-size: 12px; margin-left: auto; }
+  
+  .task-card { 
+    background: rgba(1, 4, 9, 0.3); border: 1px solid var(--panel-border); 
+    border-radius: 8px; margin-bottom: 16px; overflow: hidden; transition: all 0.2s;
+  }
+  .task-card:hover { border-color: #484f58; }
+  
+  .task-head {
+    display: flex; align-items: center; gap: 12px; padding: 12px 16px;
+    background: rgba(22, 27, 34, 0.5); border-bottom: 1px solid var(--panel-border);
+  }
+  
+  .status { font-weight: 600; font-size: 12px; min-width: 44px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .status.pass { color: var(--pass); } 
+  .status.fail { color: var(--fail); }
+  
+  .oracle-row { padding: 12px 16px 12px 48px; border-top: 1px solid var(--panel-border); font-size: 13px; }
+  .oracle-row summary { cursor: pointer; list-style: none; display: flex; gap: 12px; align-items: center; }
+  .oracle-row summary::-webkit-details-marker { display: none; }
+  .oracle-row .otype { color: var(--accent-blue); }
+  .oracle-row .msg { color: var(--text-muted); }
+  .oracle-row.fail .msg { color: var(--fail); }
+  .oracle-row pre { margin: 12px 0 4px; }
+  
+  .chip {
+    display: inline-flex; align-items: center; justify-content: center;
+    background: rgba(139, 148, 158, 0.1); border: 1px solid var(--panel-border); border-radius: 12px;
+    padding: 2px 10px; font-size: 12px; color: var(--text-main); margin: 2px 4px 2px 0;
+  }
+  .chip.link { cursor: pointer; color: var(--accent-blue); border-color: rgba(47, 129, 247, 0.4); background: rgba(47, 129, 247, 0.1); }
+  .chip.link:hover { background: rgba(47, 129, 247, 0.2); }
+  
+  .err { color: var(--fail); margin-top: 12px; white-space: pre-wrap; }
+  
+  pre.out {
+    background: #010409; border: 1px solid var(--panel-border); border-radius: 6px;
+    padding: 16px; overflow: auto; font-size: 12px; max-height: 420px; white-space: pre-wrap;
+    color: var(--text-main);
+  }
+  
+  .muted { color: var(--text-muted); }
+  
+  table { width: 100%; border-collapse: separate; border-spacing: 0; }
+  td, th { text-align: left; padding: 12px 16px; border-bottom: 1px solid var(--panel-border); font-size: 13px; vertical-align: middle; }
+  th { color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; font-size: 12px; }
+  tr.clickable { cursor: pointer; transition: background 0.2s; }
+  tr.clickable:hover td { background: rgba(139, 148, 158, 0.05); }
+  
+  .rate { font-weight: 600; }
+  .rate.good { color: var(--pass); } .rate.bad { color: var(--fail); } .rate.mid { color: var(--warn); }
+  
+  .spark { display: block; margin: 8px 0 16px; }
+  
+  .step-args { color: var(--text-muted); font-size: 12px; white-space: pre-wrap; word-break: break-all; max-height: 100px; overflow: auto; }
+  
+  .badge { font-size: 11px; border-radius: 12px; padding: 2px 8px; font-weight: 600; }
+  .badge.edit { background: rgba(47, 129, 247, 0.15); color: var(--accent-blue); border: 1px solid rgba(47, 129, 247, 0.3); }
+  .badge.cmd { background: rgba(210, 153, 34, 0.15); color: var(--warn); border: 1px solid rgba(210, 153, 34, 0.3); }
+
+  .session-group { margin-bottom: 24px; }
   .session-head {
-    display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
-    color: var(--muted); font-size: 13px;
+    display: flex; align-items: center; gap: 12px; margin-bottom: 12px;
+    color: var(--text-muted); font-size: 13px;
   }
-  .session-head .sid { color: var(--text); font-weight: 600; }
+  .session-head .sid { color: var(--text-main); font-weight: 600; }
+  
   .alert-card {
-    border: 1px solid var(--border); border-left: 4px solid var(--muted);
-    border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; background: var(--panel);
+    border: 1px solid var(--panel-border); border-left: 4px solid var(--text-muted);
+    border-radius: 8px; padding: 12px 16px; margin-bottom: 12px; background: rgba(1, 4, 9, 0.5);
+    transition: transform 0.2s, box-shadow 0.2s;
   }
+  .alert-card:hover { transform: translateX(4px); background: rgba(22, 27, 34, 0.8); }
   .alert-card.critical { border-left-color: var(--fail); }
   .alert-card.warning { border-left-color: var(--warn); }
-  .alert-card .alert-title { font-weight: 600; display: flex; gap: 8px; align-items: baseline; }
+  
+  .alert-card .alert-title { font-weight: 600; display: flex; gap: 10px; align-items: center; }
   .alert-card.critical .alert-title { color: var(--fail); }
   .alert-card.warning .alert-title { color: var(--warn); }
-  .alert-card .alert-detail { color: var(--muted); margin-top: 4px; font-size: 13px; }
-  .alert-card .alert-path { font-family: ui-monospace, Consolas, monospace; font-size: 12px; margin-top: 4px; color: var(--muted); }
-  .sev-tag { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
-  .clean-line { color: var(--pass); padding: 10px 14px; }
+  .alert-card .alert-detail { color: var(--text-muted); margin-top: 6px; font-size: 13px; line-height: 1.5; }
+  .alert-card .alert-path { font-size: 12px; margin-top: 6px; color: var(--text-muted); }
+  
+  .sev-tag { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; background: rgba(139, 148, 158, 0.15); padding: 2px 8px; border-radius: 12px; }
+  
+  .clean-line { color: var(--pass); padding: 16px 24px; font-weight: 500; display: flex; align-items: center; gap: 10px; }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 </head>
 <body>
 <header>
@@ -154,6 +251,8 @@
   <button data-tab="matrix">Compare</button>
   <button data-tab="history">History</button>
   <button data-tab="record">Import a session</button>
+  <button data-tab="quarantine">Quarantine Zone</button>
+  <button data-tab="rules">Rule Builder</button>
 </nav>
 <main>
 
@@ -165,6 +264,8 @@
       assertions, files touched outside your project, destructive commands, and more.
     </p>
     <div id="watch-status" class="muted">Looking for agent sessions…</div>
+    <div id="watch-stats"></div>
+    <button class="ghost" id="watch-download">Download report</button>
   </div>
   <div id="watch-feed"></div>
 </section>
@@ -266,8 +367,9 @@
 <section id="tab-record">
   <div class="panel">
     <p class="muted" style="margin-top:0">
-      Got a tool log from Claude Code or Cursor? Paste it here (one JSON object per line) and it
-      becomes a session you can run checks against. Different tools name things differently
+      Sessions from Claude Code and Cursor are found automatically — use this only for logs from
+      other tools. Paste a tool log here (one JSON object per line) and it becomes a session you
+      can run checks against. Different tools name things differently
       (<code>tool</code>/<code>name</code>, <code>args</code>/<code>input</code>) — that's handled for you.
     </p>
     <label>Paste the log</label>
@@ -284,9 +386,48 @@
   <pre class="out" id="rec-out" style="display:none"></pre>
 </section>
 
+<section id="tab-quarantine">
+  <div class="panel">
+    <p class="muted" style="margin-top:0">
+      The Quarantine Zone holds incidents where agents breached rules or performed unauthorized actions.
+    </p>
+    <button class="ghost" id="quarantine-refresh">Refresh Incidents</button>
+  </div>
+  <div id="quarantine-list"></div>
+</section>
+
+<section id="tab-rules">
+  <div class="panel">
+    <p class="muted" style="margin-top:0">
+      In-app Rule Builder. Create new evaluation scenarios directly.
+    </p>
+    <div class="cols">
+      <div>
+        <label>Task ID</label>
+        <input type="text" id="rule-id" placeholder="e.g. no_network_test">
+        <label>Name</label>
+        <input type="text" id="rule-name" placeholder="Rule Name">
+        <label>Description</label>
+        <textarea id="rule-desc" placeholder="Describe the task..."></textarea>
+      </div>
+      <div>
+        <label>Oracles (JSON array)</label>
+        <textarea id="rule-oracles" placeholder='[{"type": "no_network"}]'></textarea>
+      </div>
+    </div>
+    <button class="primary" id="rule-create">Create Rule</button>
+    <div class="err" id="rule-err"></div>
+    <div id="rule-success" style="color: var(--pass); margin-top: 10px;"></div>
+  </div>
+</section>
+
 </main>
 <script>
 const $ = (id) => document.getElementById(id);
+
+if (window.mermaid) {
+  mermaid.initialize({ startOnLoad: false, theme: 'dark' });
+}
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) =>
@@ -316,8 +457,55 @@ document.querySelectorAll("nav button").forEach((btn) => {
     if (btn.dataset.tab === "matrix") loadMatrixConfigs();
     if (btn.dataset.tab === "trajectories") loadTrajList();
     if (btn.dataset.tab === "diff") loadDiffOptions();
+    if (btn.dataset.tab === "quarantine") loadQuarantine();
     if (btn.dataset.tab === "watch") startWatchPolling(); else stopWatchPolling();
   });
+});
+
+async function loadQuarantine() {
+  $('quarantine-list').innerHTML = "<p class='muted'>Loading incidents...</p>";
+  try {
+    const data = await api('/api/incidents');
+    let html = `<div class="panel"><table>
+      <tr><th>ID</th><th>Severity</th><th>Status</th><th>Project</th></tr>`;
+    for (const inc of data.incidents || []) {
+      html += `<tr>
+        <td class="mono">${escapeHtml(shortId(inc.incident_id))}</td>
+        <td><span class="sev-tag ${inc.severity}">${escapeHtml(inc.severity)}</span></td>
+        <td>${escapeHtml(inc.status)}</td>
+        <td>${escapeHtml(inc.project)}</td>
+      </tr>`;
+    }
+    if (!data.incidents || data.incidents.length === 0) {
+      html += `<tr><td colspan="4" class="muted">No incidents found in Quarantine.</td></tr>`;
+    }
+    html += `</table></div>`;
+    $('quarantine-list').innerHTML = html;
+  } catch(e) {
+    $('quarantine-list').innerHTML = `<div class="err">${escapeHtml(e.message)}</div>`;
+  }
+}
+$('quarantine-refresh').addEventListener('click', loadQuarantine);
+
+$('rule-create').addEventListener('click', async () => {
+  $('rule-err').textContent = "";
+  $('rule-success').textContent = "";
+  try {
+    const id = $('rule-id').value.trim();
+    if (!id) throw new Error("Task ID is required");
+    const task = {
+      id: id,
+      name: $('rule-name').value.trim(),
+      description: $('rule-desc').value.trim(),
+      oracles: JSON.parse($('rule-oracles').value.trim() || "[]")
+    };
+    const res = await postJson("/api/task/create", { id, task });
+    if (res.ok) {
+      $('rule-success').textContent = `Successfully created ${res.file}`;
+    }
+  } catch(e) {
+    $('rule-err').textContent = e.message;
+  }
 });
 
 // ============ live watch ============
@@ -354,9 +542,43 @@ function renderSessionGroup(s) {
   return html;
 }
 
+function renderWatchStats(sessions) {
+  if (!sessions.length) {
+    $("watch-stats").innerHTML = "";
+    return;
+  }
+  const allAlerts = sessions.flatMap((s) => s.alerts || []);
+  const critical = allAlerts.filter((a) => a.severity === "critical").length;
+  const warning = allAlerts.filter((a) => a.severity === "warning").length;
+
+  const byClient = {};
+  for (const s of sessions) byClient[s.client] = (byClient[s.client] || 0) + 1;
+  const clientChips = Object.entries(byClient)
+    .map(([name, count]) => `<span class="chip">${escapeHtml(name)}: ${count}</span>`)
+    .join("");
+
+  let totalTokens = 0;
+  let totalCost = 0.0;
+  for (const s of sessions) {
+    const meta = s.metadata || {};
+    totalTokens += meta.total_tokens || s.tokens || s.total_tokens || 0;
+    totalCost += meta.total_cost || s.cost || s.total_cost || 0.0;
+  }
+  const costWidget = `<span class="chip" style="border-color:var(--pass); color:var(--pass);">Tokens: ${totalTokens.toLocaleString()} | Cost: $${totalCost.toFixed(4)}</span>`;
+
+  $("watch-stats").innerHTML = `<div style="margin-top:10px;display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+    <span><b>${sessions.length}</b> session${sessions.length === 1 ? "" : "s"}</span>
+    <span class="${critical ? "rate bad" : "muted"}"><b>${critical}</b> critical</span>
+    <span class="${warning ? "rate mid" : "muted"}"><b>${warning}</b> warning${warning === 1 ? "" : "s"}</span>
+    ${clientChips}
+    ${costWidget}
+  </div>`;
+}
+
 function renderWatch(data) {
   const sessions = data.sessions || [];
   const agents = data.detected_agents || [];
+  const clients = data.clients || [];
 
   if (!agents.length) {
     $("watch-status").innerHTML =
@@ -364,17 +586,23 @@ function renderWatch(data) {
       "<span class=\"mono\">~/.claude/projects</span> — start a session with Claude Code and " +
       "it'll show up here automatically, no setup needed.";
     $("watch-feed").innerHTML = "";
+    renderWatchStats([]);
     return;
   }
 
-  let status = `Watching Claude Code — ${sessions.length} session${sessions.length === 1 ? "" : "s"} checked`;
-  if (agents.includes("cursor")) {
-    status += ` <span class="muted">· Cursor detected — support coming soon</span>`;
+  const parsedNames = clients.filter((c) => c.parsed).map((c) => c.display);
+  const detectOnlyNames = clients.filter((c) => !c.parsed).map((c) => c.display);
+  let status = parsedNames.length
+    ? `Watching ${parsedNames.join(", ")} — ${sessions.length} session${sessions.length === 1 ? "" : "s"} checked`
+    : `${sessions.length} session${sessions.length === 1 ? "" : "s"} checked`;
+  if (detectOnlyNames.length) {
+    status += ` <span class="muted">· ${detectOnlyNames.join(", ")} detected (parsing coming soon)</span>`;
   }
   $("watch-status").innerHTML = status;
+  renderWatchStats(sessions);
 
   if (!sessions.length) {
-    $("watch-feed").innerHTML = "<p class='muted'>No Claude Code sessions found yet — start one and it'll show up here.</p>";
+    $("watch-feed").innerHTML = "<p class='muted'>No sessions found yet — start one and it'll show up here.</p>";
     return;
   }
 
@@ -396,6 +624,10 @@ async function loadWatch() {
     $("watch-status").innerHTML = `<span class="err">${escapeHtml(e.message)}</span>`;
   }
 }
+
+$("watch-download").addEventListener("click", () => {
+  window.location.href = "/api/watch/digest";
+});
 
 function rateClass(rate) {
   return rate >= 0.8 ? "good" : rate >= 0.5 ? "mid" : "bad";
@@ -428,7 +660,7 @@ function renderReport(report, meta) {
   const cls = report.passed ? "pass" : "fail";
   const when = meta && meta.timestamp
     ? `<span class="when">${escapeHtml(meta.trajectory || "")} · ${escapeHtml(meta.timestamp)}</span>` : "";
-  let html = `<div class="banner ${cls}"><span>${report.passed ? "✓" : "✗"} ${escapeHtml(verdictLine(report))}</span>${when}</div>`;
+  let html = `<div class="banner ${cls}"><span>${report.passed ? "[PASS]" : "[FAIL]"} ${escapeHtml(verdictLine(report))}</span>${when}</div>`;
   for (const task of report.tasks) {
     const tcls = task.passed ? "pass" : "fail";
     html += `<div class="task-card">
@@ -458,18 +690,44 @@ function renderReport(report, meta) {
 // ============ gate runner ============
 async function loadTrajectories() {
   try {
-    const data = await api("/api/trajectories");
+    const [data, watch] = await Promise.all([
+      api("/api/trajectories"),
+      api("/api/watch").catch(() => ({ sessions: [] })),
+    ]);
     const sel = $("gate-trajectory");
     sel.innerHTML = "";
-    for (const t of data.trajectories) {
-      const opt = document.createElement("option");
-      opt.value = t.path;
-      const meta = t.metadata.agent ? ` · ${t.metadata.agent}` : "";
-      opt.textContent = `${t.path} (${t.steps} steps${meta})`;
-      sel.appendChild(opt);
+
+    const liveSessions = watch.sessions || [];
+    if (liveSessions.length) {
+      const group = document.createElement("optgroup");
+      group.label = "Detected on this machine (automatic)";
+      for (const s of liveSessions) {
+        const opt = document.createElement("option");
+        opt.value = `live:${s.path}`;
+        opt.textContent = `${s.client} · ${shortId(s.session_id)} · ${s.cwd || "unknown folder"} (${s.steps} steps)`;
+        group.appendChild(opt);
+      }
+      sel.appendChild(group);
     }
-    if (!data.trajectories.length) {
-      sel.innerHTML = "<option value=''>(no sessions found — grab one via the Import tab)</option>";
+
+    if (data.trajectories.length) {
+      const group = document.createElement("optgroup");
+      group.label = "Recorded in this project";
+      for (const t of data.trajectories) {
+        const opt = document.createElement("option");
+        opt.value = t.path;
+        const meta = t.metadata.agent ? ` · ${t.metadata.agent}` : "";
+        opt.textContent = `${t.path} (${t.steps} steps${meta})`;
+        group.appendChild(opt);
+      }
+      sel.appendChild(group);
+    }
+
+    if (!liveSessions.length && !data.trajectories.length) {
+      sel.innerHTML = "<option value=''>(no sessions found — start an AI coding session, or import one via the Import tab)</option>";
+    } else if (liveSessions.length) {
+      // Zero-click default: newest live session (the watcher returns newest first).
+      sel.value = `live:${liveSessions[0].path}`;
     }
   } catch (e) {
     $("gate-err").textContent = e.message;
@@ -484,8 +742,16 @@ $("gate-run").addEventListener("click", async () => {
   try {
     const body = { tasks_dir: $("gate-tasks").value.trim() || "tasks" };
     const pasted = $("gate-paste").value.trim();
-    if (pasted) body.trajectory = JSON.parse(pasted);
-    else body.trajectory_path = $("gate-trajectory").value;
+    const selected = $("gate-trajectory").value;
+    if (pasted) {
+      body.trajectory = JSON.parse(pasted);
+    } else if (selected.startsWith("live:")) {
+      body.session_path = selected.slice("live:".length);
+    } else if (selected) {
+      body.trajectory_path = selected;
+    } else {
+      throw new Error("No session selected — pick one from the dropdown, paste a trajectory, or import one first.");
+    }
     const manifest = $("gate-manifest").value.trim();
     if (manifest) body.manifest = manifest;
     $("gate-results").innerHTML = renderReport(await postJson("/api/gate", body));
@@ -554,22 +820,53 @@ async function showTaskDetail(dir, file) {
 
 // ============ trajectories ============
 async function loadTrajList() {
+  $("traj-err").textContent = "";
   try {
-    const data = await api("/api/trajectories");
-    let html = `<div class="panel"><table>
-      <tr><th>Session file</th><th>Steps</th><th>Agent</th><th>Model</th></tr>`;
-    for (const t of data.trajectories) {
-      html += `<tr class="clickable" data-path="${escapeHtml(t.path)}">
-        <td class="mono">${escapeHtml(t.path)}</td>
-        <td>${t.steps}</td>
-        <td>${escapeHtml(t.metadata.agent || "—")}</td>
-        <td>${escapeHtml(t.metadata.model || "—")}</td>
-      </tr>`;
+    const [watch, data] = await Promise.all([
+      api("/api/watch").catch(() => ({ sessions: [] })),
+      api("/api/trajectories"),
+    ]);
+    const liveSessions = watch.sessions || [];
+
+    let html = `<div class="panel"><label style="margin-top:0">Detected automatically</label>`;
+    if (liveSessions.length) {
+      html += `<table><tr><th>Session</th><th>Steps</th><th>Client</th><th>Folder</th></tr>`;
+      for (const s of liveSessions) {
+        html += `<tr class="clickable" data-live="1" data-path="${escapeHtml(s.path)}">
+          <td class="mono">${escapeHtml(shortId(s.session_id))}</td>
+          <td>${s.steps}</td>
+          <td>${escapeHtml(s.client)}</td>
+          <td class="mono">${escapeHtml(s.cwd || "unknown folder")}</td>
+        </tr>`;
+      }
+      html += "</table>";
+    } else {
+      html += "<p class='muted'>No AI coding agent sessions found yet on this machine.</p>";
     }
-    html += "</table></div>";
+    html += "</div>";
+
+    html += `<div class="panel"><label style="margin-top:0">Recorded in this project</label>`;
+    if (data.trajectories.length) {
+      html += `<table><tr><th>Session file</th><th>Steps</th><th>Agent</th><th>Model</th></tr>`;
+      for (const t of data.trajectories) {
+        html += `<tr class="clickable" data-path="${escapeHtml(t.path)}">
+          <td class="mono">${escapeHtml(t.path)}</td>
+          <td>${t.steps}</td>
+          <td>${escapeHtml(t.metadata.agent || "—")}</td>
+          <td>${escapeHtml(t.metadata.model || "—")}</td>
+        </tr>`;
+      }
+      html += "</table>";
+    } else {
+      html += "<p class='muted'>None recorded yet — use the Import tab.</p>";
+    }
+    html += "</div>";
+
     $("traj-list").innerHTML = html;
     document.querySelectorAll("#traj-list tr.clickable").forEach((row) => {
-      row.addEventListener("click", () => showTrajDetail(row.dataset.path));
+      row.addEventListener("click", () =>
+        row.dataset.live ? showLiveSessionDetail(row.dataset.path) : showTrajDetail(row.dataset.path)
+      );
     });
   } catch (e) {
     $("traj-err").textContent = e.message;
@@ -579,28 +876,119 @@ async function loadTrajList() {
 const EDIT_TOOLS = ["write_file", "edit_file", "str_replace", "Write", "StrReplace"];
 const CMD_TOOLS = ["run_command", "shell", "bash", "Bash", "execute"];
 
+window.playTrajectory = function() {
+  const steps = window._currentTrajectorySteps;
+  if (!steps || !steps.length) return;
+  const container = document.getElementById("playback-container");
+  container.style.display = "block";
+  container.innerHTML = "<div style='color:var(--accent-blue); margin-bottom:8px;'>--- Playback Started ---</div>";
+  let i = 0;
+  
+  function next() {
+    if (i >= steps.length) {
+      const div = document.createElement("div");
+      div.style.color = "var(--pass)";
+      div.style.marginTop = "8px";
+      div.innerText = "--- Playback Complete ---";
+      container.appendChild(div);
+      container.scrollTop = container.scrollHeight;
+      return;
+    }
+    const s = steps[i];
+    const div = document.createElement("div");
+    div.style.marginBottom = "12px";
+    
+    let content = `<b>Step ${i}</b>: <span style="color:var(--accent-blue)">${escapeHtml(s.tool || s.type || "agent action")}</span>`;
+    const argsStr = JSON.stringify(s.args || {}, null, 2);
+    content += `<pre style="margin:4px 0 0; color:var(--text-muted); font-size:12px;">${escapeHtml(argsStr)}</pre>`;
+    
+    div.innerHTML = content;
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+    
+    i++;
+    setTimeout(next, 500);
+  }
+  next();
+};
+
+window.renderSwarmGraph = function() {
+  const steps = window._currentTrajectorySteps;
+  if (!steps || !steps.length) return;
+  const container = document.getElementById("swarm-container");
+  container.style.display = "block";
+  
+  let graph = "graph TD;\\n";
+  let hasEdges = false;
+  
+  steps.forEach((s, i) => {
+    const stepId = s.step_id ? s.step_id.replace(/[^a-zA-Z0-9]/g, '_') : `step_${i}`;
+    const label = (s.tool || s.type || "agent").replace(/["']/g, "");
+    graph += `  ${stepId}["${label}"]\\n`;
+    if (s.parent_step_id) {
+      const parentId = s.parent_step_id.replace(/[^a-zA-Z0-9]/g, '_');
+      graph += `  ${parentId} --> ${stepId}\\n`;
+      hasEdges = true;
+    }
+  });
+  
+  if (!hasEdges) {
+    container.innerHTML = "<p class='muted'>No multi-agent hierarchy (parent_step_id) found in this session.</p>";
+    return;
+  }
+  
+  container.innerHTML = `<div class="mermaid">${graph}</div>`;
+  if (window.mermaid) {
+    mermaid.run({ nodes: container.querySelectorAll('.mermaid') }).catch(() => {
+        mermaid.init(undefined, container.querySelectorAll('.mermaid'));
+    });
+  }
+};
+
+function renderTrajectoryDetail(path, t) {
+  window._currentTrajectorySteps = t.steps || [];
+  let html = `<div class="panel"><h3 style="margin-top:0" class="mono">${escapeHtml(path)}</h3>`;
+  if (t.metadata && Object.keys(t.metadata).length) {
+    html += `<pre class="out">${escapeHtml(JSON.stringify(t.metadata, null, 2))}</pre>`;
+  }
+
+  html += `<div style="margin-top:16px; margin-bottom:16px;">
+    <button class="primary" style="margin-top:0;" onclick="playTrajectory()">▶ Play</button>
+    <button class="ghost" style="margin-top:0;" onclick="renderSwarmGraph()">Show Swarm Graph</button>
+  </div>`;
+  html += `<div id="playback-container" class="out" style="display:none; margin-bottom:16px; height:300px; overflow-y:auto;"></div>`;
+  html += `<div id="swarm-container" style="display:none; margin-bottom:16px; padding:16px; background:var(--panel-bg); border: 1px solid var(--panel-border); border-radius:6px;"></div>`;
+
+  html += `<table><tr><th>#</th><th>Tool</th><th></th><th>Details</th></tr>`;
+  (t.steps || []).forEach((s, i) => {
+    let badge = "";
+    if (EDIT_TOOLS.includes(s.tool) || s.type === "file_edit") badge = `<span class="badge edit">changed a file</span>`;
+    else if (CMD_TOOLS.includes(s.tool) || s.type === "command") badge = `<span class="badge cmd">ran a command</span>`;
+    html += `<tr>
+      <td class="muted">${i}</td>
+      <td class="mono">${escapeHtml(s.tool || s.type || "?")}</td>
+      <td>${badge}</td>
+      <td><div class="step-args">${escapeHtml(JSON.stringify(s.args || {}))}</div></td>
+    </tr>`;
+  });
+  html += "</table></div>";
+  return html;
+}
+
 async function showTrajDetail(path) {
   try {
     const data = await api(`/api/trajectory?path=${encodeURIComponent(path)}`);
-    const t = data.trajectory;
-    let html = `<div class="panel"><h3 style="margin-top:0" class="mono">${escapeHtml(path)}</h3>`;
-    if (t.metadata && Object.keys(t.metadata).length) {
-      html += `<pre class="out">${escapeHtml(JSON.stringify(t.metadata, null, 2))}</pre>`;
-    }
-    html += `<table><tr><th>#</th><th>Tool</th><th></th><th>Details</th></tr>`;
-    (t.steps || []).forEach((s, i) => {
-      let badge = "";
-      if (EDIT_TOOLS.includes(s.tool) || s.type === "file_edit") badge = `<span class="badge edit">changed a file</span>`;
-      else if (CMD_TOOLS.includes(s.tool) || s.type === "command") badge = `<span class="badge cmd">ran a command</span>`;
-      html += `<tr>
-        <td class="muted">${i}</td>
-        <td class="mono">${escapeHtml(s.tool || s.type || "?")}</td>
-        <td>${badge}</td>
-        <td><div class="step-args">${escapeHtml(JSON.stringify(s.args || {}))}</div></td>
-      </tr>`;
-    });
-    html += "</table></div>";
-    $("traj-detail").innerHTML = html;
+    $("traj-detail").innerHTML = renderTrajectoryDetail(path, data.trajectory);
+    $("traj-detail").scrollIntoView({ behavior: "smooth" });
+  } catch (e) {
+    $("traj-err").textContent = e.message;
+  }
+}
+
+async function showLiveSessionDetail(path) {
+  try {
+    const data = await api(`/api/session?path=${encodeURIComponent(path)}`);
+    $("traj-detail").innerHTML = renderTrajectoryDetail(path, data.trajectory);
     $("traj-detail").scrollIntoView({ behavior: "smooth" });
   } catch (e) {
     $("traj-err").textContent = e.message;
@@ -667,7 +1055,7 @@ $("diff-run").addEventListener("click", async () => {
     });
     const bannerClass = report.changed ? "fail" : "pass";
     let html = `<div class="banner ${bannerClass}">
-      <span>${report.changed ? "✗ Changes detected between sessions" : "✓ No differences detected between sessions"}</span>
+      <span>${report.changed ? "[FAIL] Changes detected between sessions" : "[PASS] No differences detected between sessions"}</span>
       <span class="muted mono">${escapeHtml(report.baseline_path)} → ${escapeHtml(report.candidate_path)}</span>
     </div>`;
     html += `<div class="panel"><table>

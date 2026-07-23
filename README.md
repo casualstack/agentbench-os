@@ -2,15 +2,87 @@
 
 By **[Casualstack](https://casualstack.dev)** — execution accountability for AI agents.
 
-**Continuous agent reliability CI** — property-based oracles that gate AI coding agent runs on pull requests.
-AgentBench is pytest for agent trajectories: load a task, replay a recorded agent run, and fail the gate when oracles detect regressions (deleted assertions, scope creep, network access, failing tests).
+**Security & accountability for AI coding agents.** AgentBench watches the AI coding sessions already running on your machine, keeps a durable **tamper-evident audit trail** of every risky thing they do, and — for Claude Code — can **block a risky tool call before it runs**. The same engine also gates agent runs on pull requests with deterministic property checks.
 
-## Quickstart
+```bash
+pip install agentbench
+agentbench watch          # observe + record every session on this machine
+agentbench init           # turn on real-time enforcement for Claude Code
+```
+
+Three ways in, one engine:
+
+- **Watch** — zero-config observation + a hash-chained audit trail (solo devs).
+- **Enforce** — `init` blocks/gates risky Claude Code actions in real time (security-conscious teams).
+- **Gate** — property-oracle checks on agent PRs in CI (teams shipping agent-written code).
+
+## Watch mode — zero-config, multi-client
+
+Point AgentBench at the AI coding sessions already on your machine — no task
+JSON, no trajectory exports. It discovers sessions through a pluggable
+**source adapter** per client, checks them against plain-English rules, keeps
+watching live, and records every alert to a local, tamper-evident audit trail.
+
+```bash
+agentbench watch                        # check history, then watch live, record to the audit trail
+agentbench watch --once --digest report.md   # one-shot report you can share
+
+agentbench audit verify                 # prove the audit trail hasn't been silently edited
+agentbench incidents list --status open # queryable backlog, not just a terminal stream
+```
+
+| Client | Status |
+|--------|--------|
+| Claude Code | First-class (live tail) |
+| Codex CLI | First-class (live tail) |
+| Cursor | Parsed, best-effort (SQLite store) |
+| Antigravity | Detected — parsing coming |
+
+Rules catch the ways agents cut corners: deleted **or weakened** assertions
+(`assert True`), disabled tests, out-of-project writes, secret-file writes
+(`.env`, `*.pem`, …), git-hook bypass (`--no-verify`), destructive commands,
+and unexpected network calls. New alerts raise a batched desktop notification
+(optional; `agentbench[notify]`) and everything stays on your machine.
+
+Adding a client is one `SourceAdapter` subclass. Full details:
+**[docs/WATCH.md](docs/WATCH.md)** · **[docs/ACCOUNTABILITY.md](docs/ACCOUNTABILITY.md)**
+(what "tamper-evident" does and doesn't mean).
+
+## Enforce — block risky actions before they run (Claude Code)
+
+Watch mode records what happened. **Enforcement steps in first.** In your
+project:
+
+```bash
+agentbench init     # installs a Claude Code PreToolUse hook + a starter policy
+```
+
+Now every `Write`/`Edit`/`Bash` in a Claude Code session is checked against
+`.agentbench/policy.yml` before it runs and can be **allowed**, **asked**
+(native approval prompt), or **denied**:
+
+```yaml
+# .agentbench/policy.yml
+defaults:
+  critical: ask          # prompt on anything critical
+rules:
+  secret_file_write: deny
+protected_paths:
+  - ".env*"
+  - ".github/workflows/**"
+on_error: allow          # fail open — never wedge your agent
+```
+
+Opt-in and reversible (delete the policy to go back to observe-only). Every
+decision lands in the same tamper-evident audit trail. It's a strong
+guardrail, **not a sandbox** — full guarantees and non-guarantees in
+**[docs/ENFORCEMENT.md](docs/ENFORCEMENT.md)**.
+
+## Eval quickstart
 
 ```bash
 # Install (Python 3.11+)
-cd agentbench-os
-pip install -e ".[dev]"
+pip install agentbench          # or, from a clone: pip install -e ".[dev]"
 
 # Run a single eval
 agentbench run \
@@ -34,14 +106,13 @@ agentbench diff \
 
 # Desktop client (native window): gate runner + task browser + recorder
 # Prebuilt Windows/macOS/Linux downloads: see docs/UI.md
+# (Windows/macOS may warn the build is from an unidentified publisher —
+#  see docs/UI.md#windows-says-it-protected-your-pc)
 pip install -e ".[app]"
 agentbench app
 
 # Same client in a browser tab
 agentbench ui
-
-# Local watch mode for accountability alerts
-agentbench watch --once
 
 # Run tests
 pytest -q
@@ -57,32 +128,6 @@ pytest -q
 | `assertion_exists` | Regex pattern still present in a file |
 
 See [docs/ORACLE_SPEC.md](docs/ORACLE_SPEC.md) and [docs/EVAL_DSL.md](docs/EVAL_DSL.md).
-
-## Watch mode — zero-config, multi-client
-
-Point AgentBench at the AI coding sessions already on your machine — no task
-JSON, no trajectory exports. It discovers sessions through a pluggable
-**source adapter** per client, checks them against plain-English rules, and
-keeps watching live.
-
-```bash
-agentbench watch                        # check history, then watch live
-agentbench watch --once --digest report.md   # one-shot report you can share
-```
-
-| Client | Status |
-|--------|--------|
-| Claude Code | First-class (live tail) |
-| Cursor | Parsed, best-effort (SQLite store) |
-| Codex CLI · Antigravity | Detected — parsing coming |
-
-Rules catch the ways agents cut corners: deleted **or weakened** assertions
-(`assert True`), disabled tests, out-of-project writes, secret-file writes
-(`.env`, `*.pem`, …), git-hook bypass (`--no-verify`), destructive commands,
-and unexpected network calls. New alerts raise a batched desktop notification
-(optional; `agentbench[notify]`) and everything stays on your machine.
-
-Adding a client is one `SourceAdapter` subclass. Full details: **[docs/WATCH.md](docs/WATCH.md)**.
 
 ## Add to your repo
 
@@ -132,11 +177,13 @@ Overall pass rate 58.3%, zero drift against baseline (threshold 5%). See [BENCHM
 
 ## Docs
 
+- [Accountability pillar: audit trail, incidents, tamper-evidence scope](docs/ACCOUNTABILITY.md)
+- [Enforcement: real-time blocking for Claude Code, guarantees & non-guarantees](docs/ENFORCEMENT.md)
+- [Watch mode: multi-client adapters + accountability guards](docs/WATCH.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Eval DSL](docs/EVAL_DSL.md)
 - [Oracle spec](docs/ORACLE_SPEC.md)
 - [GitHub Action setup](docs/GITHUB_ACTION.md)
-- [Watch mode: multi-client adapters + accountability guards](docs/WATCH.md)
 - [Dashboard / UI client](docs/UI.md)
 - [Benchmarks](docs/BENCHMARKS.md)
 

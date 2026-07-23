@@ -8,7 +8,7 @@ import json
 import sys
 from pathlib import Path
 
-from agentbench.gate.evaluator import Evaluator
+from agentbench.eval.gate.evaluator import Evaluator
 
 
 def run_gate(
@@ -22,7 +22,7 @@ def run_gate(
     evaluator = Evaluator()
     task_files = None
     if manifest is not None:
-        from agentbench.gate.manifest import load_task_manifest
+        from agentbench.eval.gate.manifest import load_task_manifest
 
         task_files = load_task_manifest(manifest)
 
