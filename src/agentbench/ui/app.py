@@ -51,7 +51,6 @@ def run_app(root: Path | str = ".", *, tasks_dir: str = "tasks") -> int:
         height=820,
         min_size=(760, 520),
         background_color="#0d1117",
-        icon=str(icon_path),
     )
     webview.start()
 

@@ -23,7 +23,9 @@ class ClaudeCodeAdapter(SourceAdapter):
     client_name = "claude-code"
     display_name = "Claude Code"
     supports_tail = True  # append-only JSONL, safe to byte-tail
-    supports_interception = False  # observation-only in Phase 1
+    # Phase 2: Claude Code can be intercepted before a tool runs via the
+    # PreToolUse hook that `agentbench init` installs (see accountability.hook).
+    supports_interception = True
 
     def _root(self, home: Path) -> Path:
         return home / ".claude" / "projects"

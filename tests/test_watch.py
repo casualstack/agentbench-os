@@ -185,12 +185,14 @@ class TestAdapterRegistry:
         names = {a.client_name for a in ADAPTERS}
         assert names == {"claude-code", "cursor", "codex", "antigravity"}
 
-    def test_no_adapter_supports_interception_yet(self):
-        # Phase 2 seam: every adapter is observation-only in Phase 1 --
-        # none can intercept a step before it runs, only read the log
-        # after the client already wrote it.
-        for adapter in ADAPTERS:
-            assert adapter.supports_interception is False, adapter.client_name
+    def test_only_claude_code_supports_interception(self):
+        # Phase 2: Claude Code can be intercepted before a tool runs via the
+        # PreToolUse hook `agentbench init` installs. The other three remain
+        # observation-only -- they only read the log after the client wrote it.
+        by_name = {a.client_name: a for a in ADAPTERS}
+        assert by_name["claude-code"].supports_interception is True
+        for name in ("cursor", "codex", "antigravity"):
+            assert by_name[name].supports_interception is False, name
 
     def test_supports_interception_defaults_false_on_the_base_class(self):
         from agentbench.adapters.base import SourceAdapter

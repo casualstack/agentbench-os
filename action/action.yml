@@ -94,6 +94,40 @@ runs:
         echo "tasks-failed=$tasks_failed" >> "$GITHUB_OUTPUT"
         exit $exit_code
 
+    - name: Write gate digest to job summary
+      if: always()
+      shell: bash
+      env:
+        REPORT_PATH: ${{ inputs.report-path }}
+      run: |
+        # Render a per-task pass/fail digest into the run's job summary. No
+        # token or write permission needed -- teams get PR-visible results for
+        # free via the Actions "Summary" tab. (For a literal PR comment, add a
+        # follow-up step with actions/github-script; see docs/GITHUB_ACTION.md.)
+        python - <<'PY'
+        import json, os
+        path = os.environ.get("REPORT_PATH", "")
+        summary = os.environ.get("GITHUB_STEP_SUMMARY")
+        if not summary or not os.path.exists(path):
+            raise SystemExit(0)
+        data = json.load(open(path, encoding="utf-8"))
+        lines = ["## AgentBench Gate",
+                 "",
+                 f"**{data['tasks_passed']}/{data['tasks_total']} tasks passed** — "
+                 f"{'✅ gate passed' if data['passed'] else '❌ gate failed'}",
+                 "",
+                 "| Task | Result | Failing oracles |",
+                 "|------|--------|-----------------|"]
+        for t in data.get("tasks", []):
+            mark = "✅" if t["passed"] else "❌"
+            fails = ", ".join(
+                o["oracle_type"] for o in t.get("oracle_results", []) if not o["passed"]
+            ) or "—"
+            lines.append(f"| `{t['task_id']}` | {mark} | {fails} |")
+        with open(summary, "a", encoding="utf-8") as fh:
+            fh.write("\n".join(lines) + "\n")
+        PY
+
     - name: Upload gate results
       if: always()
       uses: actions/upload-artifact@v4

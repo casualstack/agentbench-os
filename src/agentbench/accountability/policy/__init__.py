@@ -6,13 +6,26 @@ Phase 2 can slot in a real engine without touching call sites again.
 always ALLOWs, wired into ``SessionWatcher`` as a no-op pass-through.
 """
 
+from agentbench.accountability.policy.config import (
+    PolicyConfig,
+    PolicyConfigError,
+    load_policy,
+)
 from agentbench.accountability.policy.decision import Decision, PolicyContext, PolicyVerdict
-from agentbench.accountability.policy.engine import ObservePolicyEngine, PolicyEngine
+from agentbench.accountability.policy.engine import (
+    ConfigPolicyEngine,
+    ObservePolicyEngine,
+    PolicyEngine,
+)
 
 __all__ = [
+    "ConfigPolicyEngine",
     "Decision",
     "ObservePolicyEngine",
+    "PolicyConfig",
+    "PolicyConfigError",
     "PolicyContext",
     "PolicyEngine",
     "PolicyVerdict",
+    "load_policy",
 ]

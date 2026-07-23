@@ -8,14 +8,19 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from rich.console import Console
+from rich.table import Table
+
 from agentbench.accountability.diff import build_diff_report
 from agentbench.eval.gate.evaluator import Evaluator
+
+console = Console()
 
 
 def cmd_run(args: argparse.Namespace) -> int:
     evaluator = Evaluator()
     result = evaluator.evaluate_files(args.task, args.trajectory)
-    print(result.summary())
+    console.print(result.summary())
     return 0 if result.passed else 1
 
 
@@ -34,19 +39,19 @@ def cmd_gate(args: argparse.Namespace) -> int:
     )
 
     if not results:
-        print(f"No task JSON files found in {args.tasks}")
+        console.print(f"[bold red]No task JSON files found in {args.tasks}[/bold red]")
         return 1
 
     failed = 0
     for result in results:
-        print(result.summary())
-        print()
+        console.print(result.summary())
+        console.print()
         if not result.passed:
             failed += 1
 
     total = len(results)
     passed = total - failed
-    print(f"Gate summary: {passed}/{total} tasks passed")
+    console.print(f"[bold]Gate summary:[/bold] {passed}/{total} tasks passed")
     return 0 if failed == 0 else 1
 
 
@@ -59,7 +64,7 @@ def cmd_matrix(args: argparse.Namespace) -> int:
 
     runner = MatrixRunner()
     result = runner.run(config)
-    print(result.summary())
+    console.print(result.summary())
 
     drift_report = None
     if config.baseline is not None:
@@ -68,20 +73,20 @@ def cmd_matrix(args: argparse.Namespace) -> int:
             config.baseline,
             threshold=config.drift_threshold,
         )
-        print()
-        print(drift_report.summary())
+        console.print()
+        console.print(drift_report.summary())
 
     if args.output:
         output = str(args.output)
         if output.lower() == "markdown":
-            print()
-            print(result.to_table(format="markdown"))
+            console.print()
+            console.print(result.to_table(format="markdown"))
         else:
             payload = result.model_dump(mode="json")
             if drift_report is not None:
                 payload["drift"] = drift_report.model_dump(mode="json")
             Path(args.output).write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-            print(f"\nWrote matrix results to {args.output}")
+            console.print(f"\n[green]Wrote matrix results to {args.output}[/green]")
 
     if drift_report is not None and drift_report.drift_detected and args.fail_on_drift:
         return 1
@@ -117,8 +122,9 @@ def _print_watch_events(events: list) -> int:
                 critical += 1
             where = event.cwd or str(event.path)
             mark = _SEVERITY_MARK.get(alert.severity, "[?]")
-            print(f"{mark} {alert.title} — {event.agent} session {event.session_id[:8]} in {where}")
-            print(f"    {alert.detail}")
+            color = "red" if alert.severity == "critical" else "yellow"
+            console.print(f"[{color}]{mark} {alert.title} — {event.agent} session {event.session_id[:8]} in {where}[/{color}]")
+            console.print(f"    [{color}]{alert.detail}[/{color}]")
     return critical
 
 
@@ -142,7 +148,7 @@ def cmd_watch(args: argparse.Namespace) -> int:
 
     detected = watcher.detected_agents()
     if not detected:
-        print(
+        console.print(
             "No AI coding agents found on this machine yet.\n"
             "AgentBench looks for Claude Code (~/.claude/projects) and Cursor "
             "sessions, and detects Codex and Antigravity."
@@ -159,7 +165,7 @@ def cmd_watch(args: argparse.Namespace) -> int:
             names.append(f"{adapter.display_name} (detected — parsing coming soon)")
         else:
             names.append(adapter.display_name)
-    print(f"Found: {', '.join(names)}")
+    console.print(f"Found: {', '.join(names)}")
 
     # Default: notify during the continuous loop when a backend is available;
     # --once is the CI/scripting path and stays quiet unless asked otherwise.
@@ -207,7 +213,7 @@ def cmd_watch(args: argparse.Namespace) -> int:
                 try:
                     audit_store.append(record)
                 except Exception as exc:  # never let a write failure kill watch
-                    print(f"[!] Failed to write audit log entry: {exc}", file=sys.stderr)
+                    console.print(f"[bold red][!] Failed to write audit log entry: {exc}[/bold red]", style="red")
 
     def _maybe_write_digest() -> None:
         if args.digest:
@@ -217,10 +223,10 @@ def cmd_watch(args: argparse.Namespace) -> int:
         events = watcher.poll()  # first poll covers existing session history
         total_sessions = len(watcher.sessions())
         scope = f" for {args.project}" if args.project else ""
-        print(f"Checked {total_sessions} recorded session(s){scope}.")
+        console.print(f"Checked {total_sessions} recorded session(s){scope}.")
         critical = _print_watch_events(events)
         if not any(e.alerts for e in events):
-            print("No problems found in recorded sessions.")
+            console.print("[green]No problems found in recorded sessions.[/green]")
         _maybe_notify(events)
         _maybe_log_audit(events)
 
@@ -228,7 +234,7 @@ def cmd_watch(args: argparse.Namespace) -> int:
             _maybe_write_digest()
             return 1 if critical and args.fail_on_alert else 0
 
-        print("\nWatching for new agent activity... (Ctrl+C to stop)")
+        console.print("\n[bold cyan]Watching for new agent activity...[/bold cyan] (Ctrl+C to stop)")
         try:
             while True:
                 time.sleep(args.interval)
@@ -237,7 +243,7 @@ def cmd_watch(args: argparse.Namespace) -> int:
                 _maybe_notify(poll_events)
                 _maybe_log_audit(poll_events)
         except KeyboardInterrupt:
-            print("\nStopped watching.")
+            console.print("\n[yellow]Stopped watching.[/yellow]")
         _maybe_write_digest()
         return 1 if critical and args.fail_on_alert else 0
     finally:
@@ -255,10 +261,10 @@ def cmd_audit_verify(args: argparse.Namespace) -> int:
         store.close()
 
     if broken is None:
-        print(f"OK: audit trail intact ({store.path})")
+        console.print(f"[bold green]OK: audit trail intact[/bold green] ({store.path})")
         return 0
 
-    print(f"BROKEN: audit trail tampered starting at event id={broken} ({store.path})")
+    console.print(f"[bold red]BROKEN: audit trail tampered starting at event id={broken}[/bold red] ({store.path})")
     return 1
 
 
@@ -286,7 +292,7 @@ def cmd_audit_export(args: argparse.Namespace) -> int:
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(text, encoding="utf-8")
-    print(f"Wrote audit export to {args.output}")
+    console.print(f"[green]Wrote audit export to {args.output}[/green]")
     return 0
 
 
@@ -313,12 +319,32 @@ def cmd_incidents_list(args: argparse.Namespace) -> int:
         )
 
     if not incidents:
-        print("No incidents found.")
+        console.print("No incidents found.")
         return 0
 
+    table = Table(title="Incidents", title_style="bold magenta")
+    table.add_column("ID", style="cyan", no_wrap=True)
+    table.add_column("Status", style="blue")
+    table.add_column("Severity")
+    table.add_column("Title")
+    table.add_column("Agent / Session")
+    table.add_column("Location", style="dim")
+
     for incident in incidents:
-        print(_format_incident_line(incident))
-    print(f"\n{len(incidents)} incident(s).")
+        mark = _INCIDENT_SEVERITY_MARK.get(incident.severity, "[?]")
+        color = "red" if incident.severity == "critical" else "yellow"
+        where = incident.cwd or "unknown location"
+        table.add_row(
+            str(incident.incident_id),
+            incident.status,
+            f"[{color}]{mark} {incident.severity}[/]",
+            incident.title,
+            f"{incident.agent} {incident.session_id[:8]}",
+            where,
+        )
+
+    console.print(table)
+    console.print(f"\n{len(incidents)} incident(s).")
     return 0
 
 
@@ -329,21 +355,22 @@ def cmd_incidents_show(args: argparse.Namespace) -> int:
         incident = store.get(args.incident_id)
 
     if incident is None:
-        print(f"No incident found with id {args.incident_id}")
+        console.print(f"[bold red]No incident found with id {args.incident_id}[/bold red]")
         return 1
 
-    print(f"Incident {incident.incident_id} [{incident.status}]")
-    print(f"  Rule: {incident.rule} ({incident.severity})")
-    print(f"  Title: {incident.title}")
-    print(f"  Detail: {incident.detail}")
-    print(f"  Agent: {incident.agent}  Session: {incident.session_id}")
-    print(f"  Project: {incident.cwd or 'unknown'}")
-    print(f"  Path: {incident.path or '-'}")
-    print(f"  Observed: {incident.ts}")
+    console.print(f"[bold]Incident {incident.incident_id}[/bold] [[blue]{incident.status}[/blue]]")
+    color = "red" if incident.severity == "critical" else "yellow"
+    console.print(f"  [bold]Rule:[/bold] {incident.rule} ([{color}]{incident.severity}[/{color}])")
+    console.print(f"  [bold]Title:[/bold] {incident.title}")
+    console.print(f"  [bold]Detail:[/bold] {incident.detail}")
+    console.print(f"  [bold]Agent:[/bold] {incident.agent}  [bold]Session:[/bold] {incident.session_id}")
+    console.print(f"  [bold]Project:[/bold] {incident.cwd or 'unknown'}")
+    console.print(f"  [bold]Path:[/bold] {incident.path or '-'}")
+    console.print(f"  [bold]Observed:[/bold] {incident.ts}")
     if incident.note:
-        print(f"  Note: {incident.note}")
+        console.print(f"  [bold]Note:[/bold] {incident.note}")
     if incident.resolved_at:
-        print(f"  Resolved: {incident.resolved_at} by {incident.resolved_by}")
+        console.print(f"  [bold]Resolved:[/bold] {incident.resolved_at} by {incident.resolved_by}")
     return 0
 
 
@@ -354,9 +381,9 @@ def cmd_incidents_ack(args: argparse.Namespace) -> int:
         incident = store.acknowledge(args.incident_id, note=args.note)
 
     if incident is None:
-        print(f"No incident found with id {args.incident_id}")
+        console.print(f"[bold red]No incident found with id {args.incident_id}[/bold red]")
         return 1
-    print(f"Acknowledged {incident.incident_id}.")
+    console.print(f"[green]Acknowledged {incident.incident_id}.[/green]")
     return 0
 
 
@@ -367,16 +394,58 @@ def cmd_incidents_resolve(args: argparse.Namespace) -> int:
         incident = store.resolve(args.incident_id, note=args.note)
 
     if incident is None:
-        print(f"No incident found with id {args.incident_id}")
+        console.print(f"[bold red]No incident found with id {args.incident_id}[/bold red]")
         return 1
-    print(f"Resolved {incident.incident_id}.")
+    console.print(f"[green]Resolved {incident.incident_id}.[/green]")
     return 0
+
+
+def cmd_init(args: argparse.Namespace) -> int:
+    from agentbench.accountability.install import (
+        HOOK_COMMAND,
+        install_hook,
+        scaffold_policy,
+    )
+
+    root = Path(args.project)
+    if not root.is_dir():
+        console.print(f"[bold red]No such directory: {root}[/bold red]", style="red")
+        return 1
+
+    hook_changed = install_hook(root)
+    policy_created = scaffold_policy(root)
+
+    settings_path = root / ".claude" / "settings.json"
+    policy_path = root / ".agentbench" / "policy.yml"
+
+    if hook_changed:
+        console.print(f"[green]Registered '{HOOK_COMMAND}' as a Claude Code PreToolUse hook in {settings_path}[/green]")
+    else:
+        console.print(f"Hook already registered in {settings_path} (no change)")
+    if policy_created:
+        console.print(f"[green]Wrote a starter policy to {policy_path}[/green]")
+    else:
+        console.print(f"Kept your existing policy at {policy_path}")
+
+    console.print(
+        "\n[bold]Enforcement is active for new Claude Code sessions in this folder.[/bold]\n"
+        f"  - Tune what gets blocked/asked in {policy_path}\n"
+        "  - Delete that file to go back to observe-only\n"
+        f"  - To uninstall: remove the '{HOOK_COMMAND}' entry from {settings_path}"
+    )
+    return 0
+
+
+def cmd_hook(args: argparse.Namespace) -> int:
+    from agentbench.accountability.hook import main as hook_main
+
+    return hook_main()
 
 
 def cmd_diff(args: argparse.Namespace) -> int:
     report = build_diff_report(args.baseline, args.candidate)
     markdown = report.to_markdown()
-    print(markdown, end="")
+    console.print(markdown, end="")
 
     if args.output:
         output = Path(args.output)
@@ -385,7 +454,7 @@ def cmd_diff(args: argparse.Namespace) -> int:
             output.write_text(json.dumps(report.to_dict(), indent=2) + "\n", encoding="utf-8")
         else:
             output.write_text(markdown, encoding="utf-8")
-        print(f"\nWrote /diff report to {output}")
+        console.print(f"\n[green]Wrote /diff report to {output}[/green]")
 
     if args.fail_on_change and report.changed:
         return 1
@@ -461,6 +530,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="Don't record alerts to the durable audit trail (default: recorded)",
     )
     watch_parser.set_defaults(func=cmd_watch)
+
+    init_parser = sub.add_parser(
+        "init",
+        help="Turn on real-time enforcement for Claude Code in this project",
+    )
+    init_parser.add_argument(
+        "--project",
+        type=Path,
+        default=Path("."),
+        help="Project folder to install the hook + policy into (default: .)",
+    )
+    init_parser.set_defaults(func=cmd_init)
 
     diff_parser = sub.add_parser(
         "diff",
@@ -598,6 +679,7 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument(
         "--trajectory", required=True, type=Path, help="Path to trajectory JSON"
     )
+    run_parser.add_argument("--sandbox", action="store_true", help="Run eval in a Docker sandbox")
     run_parser.set_defaults(func=cmd_run)
 
     gate_parser = sub.add_parser("gate", help="Run all tasks in a directory as CI gate")
@@ -610,6 +692,7 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         help="JSON manifest listing task_files compatible with the trajectory",
     )
+    gate_parser.add_argument("--sandbox", action="store_true", help="Run evals in a Docker sandbox")
     gate_parser.set_defaults(func=cmd_gate)
 
     matrix_parser = sub.add_parser(
@@ -667,6 +750,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     app_parser.add_argument("--tasks", type=Path, default=Path("tasks"), help="Tasks directory")
     app_parser.set_defaults(func=cmd_app)
+
+    # Plumbing: invoked by Claude Code as a PreToolUse hook, not by humans.
+    hook_parser = sub.add_parser(
+        "hook",
+        help=argparse.SUPPRESS,
+    )
+    hook_parser.set_defaults(func=cmd_hook)
 
     return parser
 

@@ -1,0 +1,37 @@
+name: Cloud Sync for Audit Trails
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # Daily sync
+  workflow_dispatch:
+
+jobs:
+  sync-audit-db:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Check for Audit Database
+        id: check_db
+        run: |
+          if [ -f ~/.agentbench/audit.db ]; then
+            echo "found=true" >> $GITHUB_OUTPUT
+          elif [ -f .agentbench/audit.db ]; then
+            # fallback to repo local if exists
+            mkdir -p ~/.agentbench
+            cp .agentbench/audit.db ~/.agentbench/audit.db
+            echo "found=true" >> $GITHUB_OUTPUT
+          else
+            echo "found=false" >> $GITHUB_OUTPUT
+            echo "No audit database found."
+          fi
+
+      - name: Sync Audit DB to AWS S3
+        if: steps.check_db.outputs.found == 'true'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          S3_BUCKET: ${{ secrets.AUDIT_S3_BUCKET }}
+        run: |
+          aws s3 cp ~/.agentbench/audit.db s3://$S3_BUCKET/audit-trails/audit-$(date +%Y%m%d).db

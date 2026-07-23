@@ -191,6 +191,8 @@ class UIHandler(BaseHTTPRequestHandler):
                 self._api_matrix(self._read_json_body())
             elif self.path == "/api/diff":
                 self._api_diff(self._read_json_body())
+            elif self.path == "/api/task/create":
+                self._api_task_create(self._read_json_body())
             else:
                 self._send_error_json("not found", HTTPStatus.NOT_FOUND)
         except (ValueError, OSError, json.JSONDecodeError) as exc:
@@ -438,6 +440,20 @@ class UIHandler(BaseHTTPRequestHandler):
         self._send_json({"ok": broken_event_id is None, "broken_event_id": broken_event_id, "path": path})
 
     # -- detail views ---------------------------------------------------------
+
+    def _api_task_create(self, body: dict[str, Any]) -> None:
+        tasks_dir = _resolve_under(self.root, body.get("dir", self.tasks_dir))
+        tasks_dir.mkdir(parents=True, exist_ok=True)
+        task_id = body.get("id")
+        if not task_id:
+            raise ValueError("provide task 'id'")
+        
+        file_path = tasks_dir / f"{task_id}.json"
+        if file_path.exists():
+            raise ValueError(f"Task {task_id} already exists")
+            
+        file_path.write_text(json.dumps(body.get("task", {}), indent=2), encoding="utf-8")
+        self._send_json({"ok": True, "file": file_path.name})
 
     def _api_task_detail(self, query: dict[str, list[str]]) -> None:
         tasks_dir = query.get("dir", [self.tasks_dir])[0]

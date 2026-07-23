@@ -1,0 +1,40 @@
+name: PR Audit Comments
+
+on:
+  pull_request:
+    paths:
+      - ".agentbench/audit.db"
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  comment-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      
+      - name: Install AgentBench
+        run: pip install -e .
+        
+      - name: Generate Audit Summary
+        run: |
+          # If audit db exists in the repo or was copied, we can export it
+          agentbench audit export > audit_summary.md || echo "No audit trail found." > audit_summary.md
+          
+      - name: Comment on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const summary = fs.readFileSync('audit_summary.md', 'utf8');
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## AgentBench Audit Summary\n\n${summary}`
+            });

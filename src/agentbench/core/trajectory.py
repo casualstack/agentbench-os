@@ -41,6 +41,10 @@ class TrajectoryStep:
     tool: str | None = None
     args: dict[str, Any] = field(default_factory=dict)
     raw: dict[str, Any] = field(default_factory=dict)
+    tokens_in: int | None = None
+    tokens_out: int | None = None
+    cost: float | None = None
+    parent_step_id: str | None = None
 
 
 @dataclass
@@ -62,6 +66,10 @@ class Trajectory:
                     tool=step.get("tool"),
                     args=dict(step.get("args", {})),
                     raw=step,
+                    tokens_in=step.get("tokens_in"),
+                    tokens_out=step.get("tokens_out"),
+                    cost=step.get("cost"),
+                    parent_step_id=step.get("parent_step_id"),
                 )
             )
         return cls(steps=steps, metadata=dict(data.get("metadata", {})))

@@ -24,6 +24,7 @@ from agentbench.accountability.audit.chain import GENESIS, compute_hash, verify_
 from agentbench.accountability.rules import is_within
 
 if TYPE_CHECKING:
+    from agentbench.accountability.policy.decision import Decision
     from agentbench.accountability.rules import Alert
 
 def default_db_path() -> Path:
@@ -195,6 +196,17 @@ class AuditStore:
             ).fetchall()]
         return verify_chain(rows)
 
+    def session_event_count(self, session_id: str) -> int:
+        """How many events this session already has -- a cheap per-session
+        ordinal for the hook to use as a step index when the client doesn't
+        give it one."""
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT COUNT(*) AS n FROM events WHERE session_id = ?",
+                (session_id,),
+            ).fetchone()
+        return int(row["n"]) if row is not None else 0
+
 
 def record_from_alert(
     *,
@@ -229,4 +241,60 @@ def record_from_alert(
         "source_path": source_path,
         "source_size": source_size,
         "source_mtime": source_mtime,
+    }
+
+
+# Human labels for each enforcement decision, folded into the (hash-chained)
+# title/detail so the decision itself is tamper-evident without adding a new
+# column -- adding one to the hash would invalidate every existing audit.db.
+_DECISION_LABEL = {
+    "allow": "Allowed",
+    "deny": "Blocked",
+    "require_approval": "Approval required",
+}
+
+
+def record_from_verdict(
+    *,
+    agent: str,
+    session_id: str,
+    cwd: str | None,
+    model: str | None,
+    step_index: int,
+    decision: "Decision",
+    reason: str,
+    rule: str | None = None,
+    severity: str | None = None,
+    title: str | None = None,
+    detail: str | None = None,
+    path: str | None = None,
+    source_path: str | None = None,
+) -> dict[str, Any]:
+    """Build an ``append()``-ready record for one enforcement decision.
+
+    The decision (allow/deny/require_approval) is encoded into the ``title``
+    and ``detail`` -- both hashed fields -- so an enforcement outcome is as
+    tamper-evident as any observed alert. When the decision was driven by an
+    alert, pass that alert's ``rule``/``severity``/``title``/``detail``/``path``
+    so the record reads naturally; for a decision with no underlying alert
+    (e.g. a protected-path deny), the reason stands in.
+    """
+    label = _DECISION_LABEL.get(decision.value, decision.value)
+    base_title = title or reason
+    base_detail = detail or reason
+    return {
+        "ts": datetime.now(timezone.utc).isoformat(),
+        "agent": agent,
+        "session_id": session_id,
+        "cwd": cwd,
+        "model": model,
+        "step_index": step_index,
+        "rule": rule or "policy",
+        "severity": severity or ("critical" if decision.value == "deny" else "warning"),
+        "title": f"[{label}] {base_title}",
+        "detail": f"Enforcement decision: {decision.value}. {base_detail}",
+        "path": path,
+        "source_path": source_path,
+        "source_size": None,
+        "source_mtime": None,
     }

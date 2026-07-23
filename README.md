@@ -2,8 +2,19 @@
 
 By **[Casualstack](https://casualstack.dev)** — execution accountability for AI agents.
 
-**Security & accountability for AI coding agents** — a durable, tamper-evident record of what they did, plus the property-oracle eval/benchmark suite to prove your gates work.
-AgentBench watches the AI coding sessions already running on your machine and keeps a hash-chained audit trail of every risky thing they do; the same engine also gates agent runs on pull requests with deterministic property checks.
+**Security & accountability for AI coding agents.** AgentBench watches the AI coding sessions already running on your machine, keeps a durable **tamper-evident audit trail** of every risky thing they do, and — for Claude Code — can **block a risky tool call before it runs**. The same engine also gates agent runs on pull requests with deterministic property checks.
+
+```bash
+pip install agentbench
+agentbench watch          # observe + record every session on this machine
+agentbench init           # turn on real-time enforcement for Claude Code
+```
+
+Three ways in, one engine:
+
+- **Watch** — zero-config observation + a hash-chained audit trail (solo devs).
+- **Enforce** — `init` blocks/gates risky Claude Code actions in real time (security-conscious teams).
+- **Gate** — property-oracle checks on agent PRs in CI (teams shipping agent-written code).
 
 ## Watch mode — zero-config, multi-client
 
@@ -35,15 +46,43 @@ and unexpected network calls. New alerts raise a batched desktop notification
 
 Adding a client is one `SourceAdapter` subclass. Full details:
 **[docs/WATCH.md](docs/WATCH.md)** · **[docs/ACCOUNTABILITY.md](docs/ACCOUNTABILITY.md)**
-(what "tamper-evident" does and doesn't mean, and the Phase 2
-enforcement roadmap).
+(what "tamper-evident" does and doesn't mean).
+
+## Enforce — block risky actions before they run (Claude Code)
+
+Watch mode records what happened. **Enforcement steps in first.** In your
+project:
+
+```bash
+agentbench init     # installs a Claude Code PreToolUse hook + a starter policy
+```
+
+Now every `Write`/`Edit`/`Bash` in a Claude Code session is checked against
+`.agentbench/policy.yml` before it runs and can be **allowed**, **asked**
+(native approval prompt), or **denied**:
+
+```yaml
+# .agentbench/policy.yml
+defaults:
+  critical: ask          # prompt on anything critical
+rules:
+  secret_file_write: deny
+protected_paths:
+  - ".env*"
+  - ".github/workflows/**"
+on_error: allow          # fail open — never wedge your agent
+```
+
+Opt-in and reversible (delete the policy to go back to observe-only). Every
+decision lands in the same tamper-evident audit trail. It's a strong
+guardrail, **not a sandbox** — full guarantees and non-guarantees in
+**[docs/ENFORCEMENT.md](docs/ENFORCEMENT.md)**.
 
 ## Eval quickstart
 
 ```bash
 # Install (Python 3.11+)
-cd agentbench-os
-pip install -e ".[dev]"
+pip install agentbench          # or, from a clone: pip install -e ".[dev]"
 
 # Run a single eval
 agentbench run \
@@ -138,7 +177,8 @@ Overall pass rate 58.3%, zero drift against baseline (threshold 5%). See [BENCHM
 
 ## Docs
 
-- [Accountability pillar: audit trail, incidents, Phase 2 roadmap](docs/ACCOUNTABILITY.md)
+- [Accountability pillar: audit trail, incidents, tamper-evidence scope](docs/ACCOUNTABILITY.md)
+- [Enforcement: real-time blocking for Claude Code, guarantees & non-guarantees](docs/ENFORCEMENT.md)
 - [Watch mode: multi-client adapters + accountability guards](docs/WATCH.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Eval DSL](docs/EVAL_DSL.md)
