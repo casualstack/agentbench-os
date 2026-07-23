@@ -269,7 +269,8 @@ class TestCursorAdapter:
 
 class TestStubAdapters:
     def test_antigravity_detects_but_does_not_parse(self, tmp_path):
-        (tmp_path / ".antigravity").mkdir()
+        brain_path = tmp_path / ".gemini" / "antigravity" / "brain"
+        brain_path.mkdir(parents=True)
         adapter = AntigravityAdapter()
         assert adapter.detect(tmp_path)
         assert adapter.discover(tmp_path) == []

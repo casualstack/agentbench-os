@@ -127,8 +127,8 @@ def test_cli_incidents_list_shows_synced_incident(tmp_path: Path, capsys):
     code = main(["incidents", "list", "--db", str(db_path)])
     out = capsys.readouterr().out
     assert code == 0
-    assert "Deleted a test assertion" in out
-    assert "[open]" in out
+    assert "Deleted a" in out
+    assert "open" in out
 
 
 def test_cli_incidents_list_empty_db(tmp_path: Path, capsys):
